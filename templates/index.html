@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ShowGuess</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #111;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+}
+
+.poster {
+    width: 300px;
+    border-radius: 12px;
+    transition: filter 0.6s ease;
+    display: block;
+    margin: 20px auto;
+}
+
+.guess-row {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+}
+
+.tile {
+    background-color: #333;
+    margin: 4px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    width: 120px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.green { background-color: #4CAF50; }
+.gray { background-color: #555; }
+
+input {
+    padding: 8px;
+    border-radius: 5px;
+    width: 250px;
+    border: none;
+}
+
+button {
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    background-color: #0bf;
+    color: #fff;
+}
+
+.autocomplete-container {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+#autocomplete-results {
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 6px;
+    max-width: 250px;
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    color: white;
+    overflow: hidden;
+}
+
+.autocomplete-item {
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.autocomplete-item:hover {
+    background-color: #444;
+}
+</style>
+</head>
+<body>
+
+<h1>🎬 Guess the TV Show</h1>
+
+<div class="autocomplete-container">
+    <form method="POST" id="guess-form">
+        <input id="guess-input" name="guess" placeholder="Enter TV show..." autocomplete="off" required>
+        <button type="submit">Guess</button>
+    </form>
+    <div id="autocomplete-results"></div>
+</div>
+
+{% if message %}
+<h3>{{ message }}</h3>
+{% endif %}
+
+{% set max_blur = 20 %}
+{% set blur_amt = (max_blur * (max_guesses - guesses|length)**2) // (max_guesses**2) %}
+<img src="https://image.tmdb.org/t/p/w500{{ target.poster }}" class="poster"
+     style="filter: blur({{ 0 if winner else blur_amt }}px);">
+
+{% for g in guesses %}
+<div class="guess-row">
+    <div class="tile {{ g.compare.network.color }}">{{ g.guess.network }}</div>
+    <div class="tile {{ g.compare.first_air_year.color }}">
+        {{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}
+    </div>
+    <div class="tile {{ g.compare.genre.color }}">{{ g.guess.genre }}</div>
+    <div class="tile {{ g.compare.number_of_seasons.color }}">
+        {{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}
+    </div>
+    <div class="tile {{ g.compare.status.color }}">{{ g.guess.status }}</div>
+</div>
+{% endfor %}
+
+{% if game_over %}
+    {% if trailer_url %}
+    <div style="margin-top:20px;">
+        <iframe width="420" height="236" src="{{ trailer_url }}" frameborder="0" allowfullscreen></iframe>
+    </div>
+    {% else %}
+    <p style="color:#bbb;">No trailer available.</p>
+    {% endif %}
+{% endif %}
+
+<a href="{{ url_for('reset') }}" style="display:block;margin-top:20px;color:#0bf;">🔄 New Game</a>
+
+{% if game_over %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        const ask = confirm("🎮 Game Over! Would you like to add your name to the leaderboard?");
+        if (ask) {
+            const name = prompt("Enter your name:");
+            if (name && name.trim() !== "") {
+                fetch("/add_leader", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        player_name: name.trim(),
+                        guesses: {{ guesses|length }}
+                    })
+                }).then(() => alert("✅ Added to leaderboard!"));
+            }
+        }
+    }, 1000);
+});
+</script>
+{% endif %}
+
+<script>
+const input = document.getElementById("guess-input");
+const resultsDiv = document.getElementById("autocomplete-results");
+
+input.addEventListener("input", async () => {
+    const query = input.value.trim();
+    if (query.length < 2) {
+        resultsDiv.innerHTML = "";
+        return;
+    }
+    const res = await fetch(`/autocomplete?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    resultsDiv.innerHTML = "";
+    data.results.forEach(show => {
+        const div = document.createElement("div");
+        div.className = "autocomplete-item";
+        div.textContent = `${show.name} (${show.year})`;
+        div.addEventListener("click", () => {
+            input.value = show.name;  // Only show name
+            resultsDiv.innerHTML = "";
+        });
+        resultsDiv.appendChild(div);
+    });
+});
+
+document.addEventListener("click", (e) => {
+    if (!resultsDiv.contains(e.target) && e.target !== input) {
+        resultsDiv.innerHTML = "";
+    }
+});
+</script>
+
+</body>
+</html>
