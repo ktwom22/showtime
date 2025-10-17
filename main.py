@@ -28,11 +28,11 @@ ALLOWED_NETWORKS = [
     "AMC", "FX", "USA Network", "Syfy", "Showtime", "Starz", "TNT", "BBC America"
 ]
 
-# ---------------- Pick Random Show ---------------- #
+# ---------------- Daily Show Scheduler ---------------- #
 def pick_random_show():
-    """Pick a random TV show that airs on an allowed network/service and has a trailer."""
+    """Pick a random TV show on allowed US networks or streaming services."""
     try:
-        for attempt in range(30):  # Try up to 30 times to find a valid show
+        for attempt in range(20):
             page = random.randint(1, 10)
             res = requests.get(
                 "https://api.themoviedb.org/3/tv/popular",
@@ -44,19 +44,8 @@ def pick_random_show():
                 details = requests.get(
                     f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
                 ).json()
-
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
-                if not any(net in ALLOWED_NETWORKS for net in networks):
-                    continue
-
-                # Check for trailer
-                videos = requests.get(
-                    f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US"
-                ).json()
-                trailer_key = next((v["key"] for v in videos.get("results", [])
-                                    if v["type"] == "Trailer"), None)
-                if trailer_key:
-                    show["trailer_key"] = trailer_key
+                if any(net in ALLOWED_NETWORKS for net in networks):
                     return show
         return None
     except Exception as e:
@@ -64,7 +53,6 @@ def pick_random_show():
         return None
 
 def update_daily_games():
-    """Pick daily games at scheduled times if not already set."""
     now = datetime.now(EST)
     current_date = now.strftime("%Y-%m-%d")
     try:
@@ -89,35 +77,6 @@ def update_daily_games():
             with open(DAILY_FILE, "w") as f:
                 json.dump(daily_data, f, indent=2)
             print(f"✅ Picked {slot} show:", show["name"])
-
-def force_pick_new_show():
-    """Force a new show for the current slot regardless of date."""
-    now = datetime.now(EST)
-    current_date = now.strftime("%Y-%m-%d")
-    slot = "morning" if now.hour < 17 else "evening"
-    show = pick_random_show()
-    if not show:
-        return
-
-    try:
-        with open(DAILY_FILE, "r") as f:
-            daily_data = json.load(f)
-    except FileNotFoundError:
-        daily_data = {}
-
-    if current_date not in daily_data:
-        daily_data[current_date] = {}
-
-    daily_data[current_date][slot] = {
-        "id": show["id"],
-        "name": show["name"],
-        "poster": show.get("poster_path"),
-        "overview": show.get("overview", ""),
-    }
-
-    with open(DAILY_FILE, "w") as f:
-        json.dump(daily_data, f, indent=2)
-    print(f"🎲 Force-picked new {slot} show:", show["name"])
 
 def get_current_daily_show():
     try:
@@ -172,6 +131,7 @@ def index():
     guesses = session["guesses"]
     winner = session.get("winner", False)
 
+    # Fetch target details
     details = requests.get(
         f"https://api.themoviedb.org/3/tv/{daily_game['id']}?api_key={TMDB_KEY}&language=en-US"
     ).json()
@@ -239,7 +199,6 @@ def index():
 @app.route("/reset")
 def reset():
     session.clear()
-    force_pick_new_show()       # Force a completely new show
     return redirect(url_for("index"))
 
 
@@ -256,27 +215,15 @@ def autocomplete():
     }
     res = requests.get("https://api.themoviedb.org/3/search/tv", params=params).json()
     results = []
-    for s in res.get("results", []):
-        results.append({
-            "name": s["name"],
-            "year": s.get("first_air_date", "")[:4] if s.get("first_air_date") else ""
-        })
+    for s in res.get("results", [])[:20]:
+        year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "N/A"
+        results.append({"name": s["name"], "year": year})
     return jsonify({"results": results})
 
 
 @app.route("/add_leader", methods=["POST"])
 def add_leader():
-    data = request.get_json()
-    leaderboard_file = "leaderboard.json"
-    try:
-        with open(leaderboard_file, "r") as f:
-            leaders = json.load(f)
-    except FileNotFoundError:
-        leaders = []
-    leaders.append(data)
-    with open(leaderboard_file, "w") as f:
-        json.dump(leaders, f, indent=2)
-    return "OK", 200
+    return jsonify({"success": True})
 
 
 if __name__ == "__main__":
