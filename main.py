@@ -4,9 +4,7 @@ import requests
 import json
 from flask import Flask, render_template, request, session, jsonify, redirect, url_for
 from dotenv import load_dotenv
-from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-import pytz
 
 load_dotenv()
 
@@ -16,7 +14,6 @@ TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
 
 MAX_GUESSES = 6
 DAILY_FILE = "daily_games.json"
-EST = pytz.timezone("US/Eastern")
 
 # Allowed networks/services
 ALLOWED_NETWORKS = [
@@ -28,7 +25,7 @@ ALLOWED_NETWORKS = [
     "AMC", "FX", "USA Network", "Syfy", "Showtime", "Starz", "TNT", "BBC America"
 ]
 
-# ---------------- Daily Show Scheduler ---------------- #
+# ---------------- Daily Show Logic ---------------- #
 def pick_random_show():
     """Pick a random TV show on allowed US networks or streaming services."""
     try:
@@ -53,7 +50,7 @@ def pick_random_show():
         return None
 
 def update_daily_games():
-    now = datetime.now(EST)
+    now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     try:
         with open(DAILY_FILE, "r") as f:
@@ -72,7 +69,7 @@ def update_daily_games():
                 "id": show["id"],
                 "name": show["name"],
                 "poster": show.get("poster_path"),
-                "overview": show.get("overview", ""),
+                "overview": show.get("overview", "")
             }
             with open(DAILY_FILE, "w") as f:
                 json.dump(daily_data, f, indent=2)
@@ -84,17 +81,12 @@ def get_current_daily_show():
             daily_data = json.load(f)
     except FileNotFoundError:
         return None
-    now = datetime.now(EST)
+    now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     slot = "morning" if now.hour < 17 else "evening"
     if current_date in daily_data and slot in daily_data[current_date]:
         return daily_data[current_date][slot]
     return None
-
-scheduler = BackgroundScheduler(timezone=EST)
-scheduler.add_job(update_daily_games, "cron", hour=8, minute=0)
-scheduler.add_job(update_daily_games, "cron", hour=17, minute=0)
-scheduler.start()
 
 # ---------------- Helper Functions ---------------- #
 def compare_values(target, guess):
