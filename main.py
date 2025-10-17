@@ -1,193 +1,283 @@
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify
-import requests
+import os
 import random
+import requests
 import json
-import os
-import os
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for
+from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
+import pytz
 
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"
+app.secret_key = os.getenv("SECRET_KEY", "secret123")
+TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
 
-API_KEY = os.getenv("API_KEY")
 MAX_GUESSES = 6
-LEADERBOARD_FILE = "leaderboard.json"
+DAILY_FILE = "daily_games.json"
+EST = pytz.timezone("US/Eastern")
 
-US_MAIN_NETWORKS = [
-    "ABC", "NBC", "CBS", "FOX", "The CW", "PBS",
-    "HBO", "Showtime", "AMC", "USA Network", "FX", "TNT",
-    "Netflix", "Hulu", "Disney+", "Amazon Prime Video", "Apple TV+",
-    "Peacock", "Paramount+", "HBO Max"
+# Allowed networks/services
+ALLOWED_NETWORKS = [
+    # Broadcast
+    "ABC", "NBC", "CBS", "FOX", "The CW",
+    # Streaming
+    "Netflix", "Hulu", "Disney+", "HBO Max", "Prime Video", "Apple TV+",
+    # Cable
+    "AMC", "FX", "USA Network", "Syfy", "Showtime", "Starz", "TNT", "BBC America"
 ]
 
-# ----- Leaderboard -----
-def load_leaderboard():
-    if not os.path.exists(LEADERBOARD_FILE):
-        return []
-    with open(LEADERBOARD_FILE, "r") as f:
-        return json.load(f)
+# ---------------- Pick Random Show ---------------- #
+def pick_random_show():
+    """Pick a random TV show that airs on an allowed network/service and has a trailer."""
+    try:
+        for attempt in range(30):  # Try up to 30 times to find a valid show
+            page = random.randint(1, 10)
+            res = requests.get(
+                "https://api.themoviedb.org/3/tv/popular",
+                params={"api_key": TMDB_KEY, "language": "en-US", "page": page},
+            ).json()
+            shows = res.get("results", [])
+            random.shuffle(shows)
+            for show in shows:
+                details = requests.get(
+                    f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
+                ).json()
 
-def save_leaderboard(data):
-    with open(LEADERBOARD_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+                networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
+                if not any(net in ALLOWED_NETWORKS for net in networks):
+                    continue
 
-# ----- API Helpers -----
-def get_random_show():
-    while True:
-        page = random.randint(1, 40)
-        url = f"https://api.themoviedb.org/3/tv/popular?api_key={API_KEY}&language=en-US&page={page}"
-        data = requests.get(url).json()
-        shows = [s for s in data["results"] if s.get("vote_count", 0) > 1000]
-        if not shows:
-            continue
-        show = random.choice(shows)
-        detail_url = f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={API_KEY}&language=en-US"
-        details = requests.get(detail_url).json()
-
-        us_networks = [n for n in details.get("networks", []) if n.get("name") in US_MAIN_NETWORKS]
-        if not us_networks:
-            continue
-
-        return {
-            "id": details["id"],
-            "name": details.get("name", "Unknown"),
-            "poster": details.get("poster_path"),
-            "network": us_networks[0]["name"],
-            "first_air_year": details.get("first_air_date", "????")[:4],
-            "genre": details.get("genres")[0]["name"] if details.get("genres") else "Unknown",
-            "number_of_seasons": details.get("number_of_seasons", "Unknown"),
-            "status": details.get("status", "Unknown"),
-        }
-
-def search_show(title):
-    url = f"https://api.themoviedb.org/3/search/tv?api_key={API_KEY}&query={title}"
-    data = requests.get(url).json()
-    if not data["results"]:
+                # Check for trailer
+                videos = requests.get(
+                    f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US"
+                ).json()
+                trailer_key = next((v["key"] for v in videos.get("results", [])
+                                    if v["type"] == "Trailer"), None)
+                if trailer_key:
+                    show["trailer_key"] = trailer_key
+                    return show
         return None
-    for s in data["results"]:
-        if s["name"].lower() == title.lower():
-            detail_url = f"https://api.themoviedb.org/3/tv/{s['id']}?api_key={API_KEY}&language=en-US"
-            details = requests.get(detail_url).json()
-            us_networks = [n for n in details.get("networks", []) if n.get("name") in US_MAIN_NETWORKS]
-            network_name = us_networks[0]["name"] if us_networks else (
-                details["networks"][0]["name"] if details.get("networks") else "Unknown"
-            )
-            return {
-                "id": details["id"],
-                "name": details.get("name", "Unknown"),
-                "poster": details.get("poster_path"),
-                "network": network_name,
-                "first_air_year": details.get("first_air_date", "????")[:4],
-                "genre": details.get("genres")[0]["name"] if details.get("genres") else "Unknown",
-                "number_of_seasons": details.get("number_of_seasons", "Unknown"),
-                "status": details.get("status", "Unknown"),
+    except Exception as e:
+        print("Error picking random show:", e)
+        return None
+
+def update_daily_games():
+    """Pick daily games at scheduled times if not already set."""
+    now = datetime.now(EST)
+    current_date = now.strftime("%Y-%m-%d")
+    try:
+        with open(DAILY_FILE, "r") as f:
+            daily_data = json.load(f)
+    except FileNotFoundError:
+        daily_data = {}
+
+    if current_date not in daily_data:
+        daily_data[current_date] = {}
+
+    slot = "morning" if now.hour < 17 else "evening"
+    if slot not in daily_data[current_date]:
+        show = pick_random_show()
+        if show:
+            daily_data[current_date][slot] = {
+                "id": show["id"],
+                "name": show["name"],
+                "poster": show.get("poster_path"),
+                "overview": show.get("overview", ""),
             }
+            with open(DAILY_FILE, "w") as f:
+                json.dump(daily_data, f, indent=2)
+            print(f"✅ Picked {slot} show:", show["name"])
+
+def force_pick_new_show():
+    """Force a new show for the current slot regardless of date."""
+    now = datetime.now(EST)
+    current_date = now.strftime("%Y-%m-%d")
+    slot = "morning" if now.hour < 17 else "evening"
+    show = pick_random_show()
+    if not show:
+        return
+
+    try:
+        with open(DAILY_FILE, "r") as f:
+            daily_data = json.load(f)
+    except FileNotFoundError:
+        daily_data = {}
+
+    if current_date not in daily_data:
+        daily_data[current_date] = {}
+
+    daily_data[current_date][slot] = {
+        "id": show["id"],
+        "name": show["name"],
+        "poster": show.get("poster_path"),
+        "overview": show.get("overview", ""),
+    }
+
+    with open(DAILY_FILE, "w") as f:
+        json.dump(daily_data, f, indent=2)
+    print(f"🎲 Force-picked new {slot} show:", show["name"])
+
+def get_current_daily_show():
+    try:
+        with open(DAILY_FILE, "r") as f:
+            daily_data = json.load(f)
+    except FileNotFoundError:
+        return None
+    now = datetime.now(EST)
+    current_date = now.strftime("%Y-%m-%d")
+    slot = "morning" if now.hour < 17 else "evening"
+    if current_date in daily_data and slot in daily_data[current_date]:
+        return daily_data[current_date][slot]
     return None
 
-def compare_shows(target, guess):
-    result = {}
-    for field in ["network","first_air_year","genre","number_of_seasons","status"]:
-        if field in ["first_air_year","number_of_seasons"]:
-            color = "green" if guess[field] == target[field] else "gray"
-            arrow = ""
-            try:
-                guess_val = int(guess[field])
-                target_val = int(target[field])
-                if guess_val < target_val:
-                    arrow = "↑"
-                elif guess_val > target_val:
-                    arrow = "↓"
-            except:
-                arrow = ""
-            result[field] = {"color": color, "arrow": arrow}
-        else:
-            result[field] = {"color": "green" if guess[field] == target[field] else "gray", "arrow": ""}
-    return result
+scheduler = BackgroundScheduler(timezone=EST)
+scheduler.add_job(update_daily_games, "cron", hour=8, minute=0)
+scheduler.add_job(update_daily_games, "cron", hour=17, minute=0)
+scheduler.start()
 
-def get_trailer(show_id):
-    url = f"https://api.themoviedb.org/3/tv/{show_id}/videos?api_key={API_KEY}&language=en-US"
-    data = requests.get(url).json()
-    for video in data.get("results", []):
-        if video["site"].lower() == "youtube" and video["type"].lower() == "trailer":
-            return f"https://www.youtube.com/embed/{video['key']}"
-    return None
+# ---------------- Helper Functions ---------------- #
+def compare_values(target, guess):
+    def color(val1, val2):
+        return "green" if val1 == val2 else "gray"
+    def arrow(num1, num2):
+        if not (isinstance(num1, int) and isinstance(num2, int)):
+            return ""
+        return "⬆️" if num1 < num2 else ("⬇️" if num1 > num2 else "")
+    return {
+        "network": {"color": color(target["network"], guess["network"])},
+        "first_air_year": {"color": color(target["first_air_year"], guess["first_air_year"]),
+                           "arrow": arrow(int(guess["first_air_year"]), int(target["first_air_year"]))},
+        "genre": {"color": color(target["genre"], guess["genre"])},
+        "number_of_seasons": {"color": color(target["number_of_seasons"], guess["number_of_seasons"]),
+                              "arrow": arrow(int(guess["number_of_seasons"]), int(target["number_of_seasons"]))},
+        "status": {"color": color(target["status"], guess["status"])}
+    }
 
-# ----- Routes -----
-@app.route("/", methods=["GET","POST"])
+# ---------------- Routes ---------------- #
+@app.route("/", methods=["GET", "POST"])
 def index():
-    if "target" not in session:
-        session["target"] = get_random_show()
+    daily_game = get_current_daily_show()
+    if not daily_game:
+        update_daily_games()
+        daily_game = get_current_daily_show()
+    if not daily_game:
+        return "No daily show available. Try again later."
+
     if "guesses" not in session:
         session["guesses"] = []
+        session["winner"] = False
 
-    target = session["target"]
-    winner = False
-    message = None
+    guesses = session["guesses"]
+    winner = session.get("winner", False)
 
-    if request.method == "POST" and "guess" in request.form:
-        guess_title = request.form["guess"].strip()
-        guess = search_show(guess_title)
-        if not guess:
-            message = "❌ No show found."
-        else:
-            comparison = compare_shows(target, guess)
-            guesses = session.get("guesses", [])
-            guesses.append({"guess": guess, "compare": comparison})
-            session["guesses"] = guesses
+    details = requests.get(
+        f"https://api.themoviedb.org/3/tv/{daily_game['id']}?api_key={TMDB_KEY}&language=en-US"
+    ).json()
+    genres = details.get("genres", [])
+    main_genre = genres[0]["name"] if genres else "Unknown"
+    target = {
+        "title": details["name"],
+        "network": details["networks"][0]["name"] if details.get("networks") else "Unknown",
+        "first_air_year": details.get("first_air_date", "????")[:4],
+        "genre": main_genre,
+        "number_of_seasons": details.get("number_of_seasons", "?"),
+        "status": details.get("status", "Unknown"),
+        "poster": details.get("poster_path", ""),
+        "trailer": None
+    }
 
-            if guess["name"].lower() == target["name"].lower():
-                winner = True
-                message = f"🎉 Correct! It was {target['name']}!"
+    game_over = len(guesses) >= MAX_GUESSES or winner
 
-    game_over = winner or len(session.get("guesses", [])) >= MAX_GUESSES
-    trailer_url = get_trailer(target["id"]) if game_over else None
-    leaderboard = load_leaderboard()
+    if request.method == "POST":
+        guess_title = request.form["guess"].strip().lower()
+        res = requests.get(
+            f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_KEY}&query={guess_title}&language=en-US"
+        ).json()
+        if not res.get("results"):
+            return render_template("index.html", message="❌ No show found.",
+                                   guesses=guesses, target=target, winner=winner,
+                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES)
+        show = res["results"][0]
+        details_guess = requests.get(
+            f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
+        ).json()
+        genres_guess = details_guess.get("genres", [])
+        main_genre_guess = genres_guess[0]["name"] if genres_guess else "Unknown"
+        guess_data = {
+            "title": details_guess["name"],
+            "network": details_guess["networks"][0]["name"] if details_guess.get("networks") else "Unknown",
+            "first_air_year": details_guess.get("first_air_date", "????")[:4],
+            "genre": main_genre_guess,
+            "number_of_seasons": details_guess.get("number_of_seasons", "?"),
+            "status": details_guess.get("status", "Unknown"),
+        }
+        compare = compare_values(target, guess_data)
+        guesses.append({"guess": guess_data, "compare": compare})
+        session["guesses"] = guesses
 
-    return render_template(
-        "index.html",
-        target=target,
-        guesses=session["guesses"],
-        winner=winner,
-        message=message,
-        max_guesses=MAX_GUESSES,
-        trailer_url=trailer_url,
-        game_over=game_over,
-        leaderboard=leaderboard
-    )
+        if guess_data["title"].lower() == target["title"].lower():
+            session["winner"] = True
+            winner = True
+
+        game_over = len(guesses) >= MAX_GUESSES or winner
+
+        if game_over:
+            videos = requests.get(
+                f"https://api.themoviedb.org/3/tv/{daily_game['id']}/videos?api_key={TMDB_KEY}&language=en-US"
+            ).json()
+            trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
+            target["trailer"] = f"https://www.youtube.com/embed/{trailer_key}" if trailer_key else None
+
+    return render_template("index.html",
+                           guesses=guesses, target=target, winner=winner,
+                           game_over=game_over, trailer_url=target.get("trailer"),
+                           max_guesses=MAX_GUESSES)
+
+
+@app.route("/reset")
+def reset():
+    session.clear()
+    force_pick_new_show()       # Force a completely new show
+    return redirect(url_for("index"))
+
 
 @app.route("/autocomplete")
 def autocomplete():
-    query = request.args.get("q", "")
+    query = request.args.get("q", "").strip()
     if not query:
         return jsonify({"results": []})
-    url = f"https://api.themoviedb.org/3/search/tv?api_key={API_KEY}&query={query}"
-    data = requests.get(url).json()
+    params = {
+        "api_key": TMDB_KEY,
+        "query": query,
+        "language": "en-US",
+        "include_adult": "false"
+    }
+    res = requests.get("https://api.themoviedb.org/3/search/tv", params=params).json()
     results = []
-    for s in data.get("results", [])[:10]:
-        year = s.get("first_air_date", "")[:4] or "????"
-        results.append({"name": s["name"], "year": year})
+    for s in res.get("results", []):
+        results.append({
+            "name": s["name"],
+            "year": s.get("first_air_date", "")[:4] if s.get("first_air_date") else ""
+        })
     return jsonify({"results": results})
+
 
 @app.route("/add_leader", methods=["POST"])
 def add_leader():
     data = request.get_json()
-    name = data.get("player_name", "Unknown")
-    guesses = data.get("guesses", 0)
+    leaderboard_file = "leaderboard.json"
+    try:
+        with open(leaderboard_file, "r") as f:
+            leaders = json.load(f)
+    except FileNotFoundError:
+        leaders = []
+    leaders.append(data)
+    with open(leaderboard_file, "w") as f:
+        json.dump(leaders, f, indent=2)
+    return "OK", 200
 
-    leaderboard = load_leaderboard()
-    leaderboard.append({"name": name, "guesses": guesses})
-    leaderboard = sorted(leaderboard, key=lambda x: x["guesses"])[:10]
-    save_leaderboard(leaderboard)
-    return jsonify({"status": "ok"})
-
-@app.route("/reset")
-def reset():
-    session.pop("target", None)
-    session.pop("guesses", None)
-    return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
+    app.run(host="0.0.0.0", port=5005)
