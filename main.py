@@ -182,6 +182,14 @@ def index():
     if not daily_game:
         return "No daily show available. Try again later."
 
+    # Build absolute logo and blank image URLs for social meta (prefer SITE_URL if set)
+    if SITE_URL:
+        logo_url = SITE_URL + url_for('static', filename='logo.png')
+        blank_image_url = SITE_URL + url_for('static', filename='blank.png')
+    else:
+        logo_url = url_for('static', filename='logo.png', _external=True)
+        blank_image_url = url_for('static', filename='blank.png', _external=True)
+
     if "guesses" not in session:
         session["guesses"] = []
         session["winner"] = False
