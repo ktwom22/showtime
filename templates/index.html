@@ -1,28 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Guess the TV Show">
-  <meta property="og:description" content="Can you guess the TV show from clues?">
-  <meta property="og:image" content="{{ blank_image_url }}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="{{ request.url }}">
+  <meta property="og:title" content="Guess the TV Show" />
+  <meta property="og:description" content="Can you guess the TV show from clues?" />
+  <meta property="og:image" content="{{ blank_image_url }}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ request.url }}" />
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Guess the TV Show">
-  <meta name="twitter:description" content="Can you guess the TV show from clues?">
-  <meta name="twitter:image" content="{{ blank_image_url }}">
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Guess the TV Show" />
+  <meta name="twitter:description" content="Can you guess the TV show from clues?" />
+  <meta name="twitter:image" content="{{ blank_image_url }}" />
 
   <!-- Discourage image indexing -->
-  <meta name="robots" content="noimageindex, noarchive">
-
-  <style>
-    body {
-      font-family: Arial;
+  <meta name="robots" content="noimageindex, sans-serif;
       background: #111;
       color: white;
       text-align: center;
@@ -37,6 +33,7 @@
       transition: filter 0.5s ease;
       margin: 20px auto;
       object-fit: cover;
+      display: block;
     }
   </style>
 </head>
@@ -47,17 +44,21 @@
   {% set max_blur = 20 %}
   <div>
     {% if target.poster %}
-    <noscript></noscript>
-    https://image.tmdb.org/t/p/w300{{ target.poster }}
+      <noscript></noscript>
+      https://image.tmdb.org/t/p/w300{{ target.poster }}
     {% else %}
-    <div class="poster" style="display:inline-block;"></div>
+      <div class="poster" style="display:inline-block;"></div>
     {% endif %}
   </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      document.querySelectorAll('img[data-src]').forEach(function(img) {
-        img.src = img.getAttribute('data-src');
+      const images = document.querySelectorAll('img[data-src]');
+      images.forEach(function(img) {
+        const src = img.getAttribute('data-src');
+        if (src) {
+          img.setAttribute('src', src);
+        }
       });
     });
   </script>
