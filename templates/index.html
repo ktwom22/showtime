@@ -21,8 +21,23 @@
   <meta name="robots" content="noimageindex, noarchive">
 
   <style>
-    body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:0; }
-    .poster { width:300px; height:450px; background:#222; border-radius:12px; transition:filter 0.5s ease; margin:20px auto; object-fit:cover; }
+    body {
+      font-family: Arial;
+      background: #111;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    .poster {
+      width: 300px;
+      height: 450px;
+      background: #222;
+      border-radius: 12px;
+      transition: filter 0.5s ease;
+      margin: 20px auto;
+      object-fit: cover;
+    }
   </style>
 </head>
 <body>
@@ -40,8 +55,10 @@
   </div>
 
   <script>
-    document.querySelectorAll('img[data-src]').forEach(img => {
-      img.src = img.getAttribute('data-src');
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll('img[data-src]').forEach(function(img) {
+        img.src = img.getAttribute('data-src');
+      });
     });
   </script>
 
