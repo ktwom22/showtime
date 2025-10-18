@@ -1,72 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>ShowGuess</title>
-<style>
-body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:0; }
-.header { display:flex; align-items:center; gap:12px; justify-content:center; padding:18px 0; }
-.site-logo { width:56px; height:56px; object-fit:contain; border-radius:8px; }
-.poster { width:300px; height:450px; background:#222; border-radius:12px; transition:filter 0.5s ease; margin:20px auto; object-fit:cover; }
-.guess-row { display:flex; justify-content:center; margin:8px 0; }
-.tile { background:#333; margin:4px; padding:10px 16px; border-radius:8px; width:120px; text-align:center; font-weight:bold; }
-.green { background-color:#4CAF50; }
-.gray { background-color:#555; }
-input { padding:8px; border-radius:5px; width:250px; border:none; }
-button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; background:#0bf; color:#fff; }
-.autocomplete-container { position:relative; display:inline-block; margin-bottom:10px; }
-#autocomplete-results { background:#222; border:1px solid #555; border-radius:6px; max-width:250px; position:absolute; top:40px; left:0; right:0; z-index:1000; color:white; overflow:hidden; }
-.autocomplete-item { padding:6px 10px; cursor:pointer; }
-.autocomplete-item:hover { background-color:#444; }
-</style>
+  <meta charset="utf-8" />
+  <title>ShowGuess</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <style>
+    body { font-family: Arial, background:#111; color:white; text-align:center; margin:0; padding:0; }
+    .header { display:flex; align-items:center; gap:12px; justify-content:center; padding:18px 0; }
+    /* Inline-logo container */
+    .site-logo { width:56px; height:56px; display:flex; align-items:center; justify-content:center; }
+    /* Visual styling for the inline SVG */
+    .site-logo svg { width:100%; height:100%; display:block; }
+    .site-title { margin:0; font-size:20px; display:flex; align-items:center; gap:8px; }
+    .poster { width:300px; height:450px; background:#222; border-radius:12px; transition:filter 0.5s ease; margin:20px auto; object-fit:cover; }
+    .guess-row { display:flex; justify-content:center; margin:8px 0; }
+    .tile { background:#333; margin:4px; padding:10px 16px; border-radius:8px; width:120px; text-align:center; font-weight:bold; }
+    .green { background-color:#4CAF50; }
+    .gray { background-color:#555; }
+    input { padding:8px; border-radius:5px; width:250px; border:none; }
+    button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; background:#0bf; color:#fff; }
+    .autocomplete-container { position:relative; display:inline-block; margin-bottom:10px; }
+    #autocomplete-results { background:#222; border:1px solid #555; border-radius:6px; max-width:250px; position:absolute; top:40px; left:0; right:0; z-index:1000; color:white; overflow:hidden; }
+    .autocomplete-item { padding:6px 10px; cursor:pointer; }
+    .autocomplete-item:hover { background-color:#444; }
+  </style>
 </head>
 <body>
 
-<div class="header">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="ShowGuess logo" class="site-logo">
-    <h1 style="margin:0;">🎬 Guess the TV Show</h1>
-</div>
-
-<div class="autocomplete-container">
-    <form method="POST" id="guess-form">
-        <input id="guess-input" name="guess" placeholder="Enter TV show..." autocomplete="off" required>
-        <button type="submit">Guess</button>
-    </form>
-    <div id="autocomplete-results"></div>
-</div>
-
-{% if message %}<h3>{{ message }}</h3>{% endif %}
-
-{% for g in guesses %}
-<div class="guess-row">
-    <div class="tile {{ g.compare.network.color }}">{{ g.guess.network }}</div>
-    <div class="tile {{ g.compare.first_air_year.color }}">{{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
-    <div class="tile {{ g.compare.genre.color }}">{{ g.guess.genre }}</div>
-    <div class="tile {{ g.compare.number_of_seasons.color }}">{{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
-    <div class="tile {{ g.compare.status.color }}">{{ g.guess.status }}</div>
-</div>
-{% endfor %}
-
-{% set max_blur = 20 %}
-<div>
-    {% if target.poster %}
-    <img src="https://image.tmdb.org/t/p/w300{{ target.poster }}"
-         class="poster"
-         style="filter: blur({{ 0 if winner else (max_blur * (max_guesses - guesses|length)**2) // (max_guesses**2) }}px);">
-    {% else %}
-    <div class="poster" style="display:inline-block;"></div>
-    {% endif %}
-</div>
-
-{% if game_over %}
-    {% if trailer_url %}
-    <div style="margin-top:20px;">
-        <iframe width="420" height="236" src="{{ trailer_url }}" frameborder="0" allowfullscreen></iframe>
+  <div class="header">
+    <!-- Inline SVG logo (no static file required) -->
+    <div class="site-logo" aria-hidden="true" title="ShowGuess logo">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ShowGuess">
+        <!-- rounded square bg -->
+        <rect rx="10" ry="10" width="64" height="64" fill="#0bf"/>
+        <!-- play icon -->
+        <polygon points="26,18 50,32 26,46" fill="#072c3d"/>
+        <!-- film strip dots -->
+        <circle cx="12" cy="12" r="2" fill="#ffffff22"/>
+        <circle cx="52" cy="12" r="2" fill="#ffffff22"/>
+        <circle cx="12" cy="52" r="2" fill="#ffffff22"/>
+        <circle cx="52" cy="52" r="2" fill="#ffffff22"/>
+      </svg>
     </div>
-    {% else %}
-    <p style="color:#bbb;">No trailer available.</p>
-    {% endif %}
-{% endif %}
+
+    <h1 class="site-title">🎬 Guess the TV Show</h1>
+  </div>
+
+  <div class="autocomplete-container">
+      <form method="POST" id="guess-form">
+          <input id="guess-input" name="guess" placeholder="Enter TV show..." autocomplete="off" required>
+          <button type="submit">Guess</button>
+      </form>
+      <div id="autocomplete-results"></div>
+  </div>
+
+  {% if message %}<h3>{{ message }}</h3>{% endif %}
+
+  {% for g in guesses %}
+  <div class="guess-row">
+      <div class="tile {{ g.compare.network.color }}">{{ g.guess.network }}</div>
+      <div class="tile {{ g.compare.first_air_year.color }}">{{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
+      <div class="tile {{ g.compare.genre.color }}">{{ g.guess.genre }}</div>
+      <div class="tile {{ g.compare.number_of_seasons.color }}">{{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
+      <div class="tile {{ g.compare.status.color }}">{{ g.guess.status }}</div>
+  </div>
+  {% endfor %}
+
+  {% set max_blur = 20 %}
+  <div>
+      {% if target.poster %}
+      <img src="https://image.tmdb.org/t/p/w300{{ target.poster }}"
+           class="poster"
+           style="filter: blur({{ 0 if winner else (max_blur * (max_guesses - guesses|length)**2) // (max_guesses**2) }}px);">
+      {% else %}
+      <div class="poster" style="display:inline-block;"></div>
+      {% endif %}
+  </div>
+
+  {% if game_over %}
+      {% if trailer_url %}
+      <div style="margin-top:20px;">
+          <iframe width="420" height="236" src="{{ trailer_url }}" frameborder="0" allowfullscreen></iframe>
+      </div>
+      {% else %}
+      <p style="color:#bbb;">No trailer available.</p>
+      {% endif %}
+  {% endif %}
 
 <script>
 const input = document.getElementById("guess-input");
@@ -83,7 +103,7 @@ input.addEventListener("input", async () => {
         div.className = "autocomplete-item";
         div.textContent = `${show.name} (${show.year})`;
         div.addEventListener("click", () => {
-            input.value = show.name;
+            input.value = show.name; // Only the name
             resultsDiv.innerHTML = "";
         });
         resultsDiv.appendChild(div);
