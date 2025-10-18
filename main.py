@@ -27,9 +27,9 @@ ALLOWED_NETWORKS = [
 
 # ---------------- Daily Show Logic ---------------- #
 def pick_random_show():
-    """Pick a random TV show on allowed US networks or streaming services."""
+    """Pick a random TV show on allowed US networks/streaming services that has a trailer."""
     try:
-        for attempt in range(20):
+        for attempt in range(50):  # More attempts to ensure we find one with a trailer
             page = random.randint(1, 10)
             res = requests.get(
                 "https://api.themoviedb.org/3/tv/popular",
@@ -37,17 +37,37 @@ def pick_random_show():
             ).json()
             shows = res.get("results", [])
             random.shuffle(shows)
+
             for show in shows:
                 details = requests.get(
                     f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
                 ).json()
+
+                # Check for allowed networks
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
-                if any(net in ALLOWED_NETWORKS for net in networks):
-                    return show
+                if not any(net in ALLOWED_NETWORKS for net in networks):
+                    continue
+
+                # Check for trailer
+                videos = requests.get(
+                    f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US"
+                ).json()
+                trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
+
+                if trailer_key:
+                    return {
+                        "id": show["id"],
+                        "name": show["name"],
+                        "poster": show.get("poster_path"),
+                        "overview": show.get("overview", ""),
+                        "trailer_key": trailer_key
+                    }
+
         return None
     except Exception as e:
         print("Error picking random show:", e)
         return None
+
 
 def update_daily_games():
     now = datetime.now()
