@@ -88,7 +88,7 @@ def update_daily_games():
             daily_data[current_date][slot] = {
                 "id": show["id"],
                 "name": show["name"],
-                "poster": show.get("poster_path"),
+                "poster": show.get("poster"),
                 "overview": show.get("overview", "")
             }
             with open(DAILY_FILE, "w") as f:
@@ -126,6 +126,19 @@ def compare_values(target, guess):
         "status": {"color": color(target["status"], guess["status"])}
     }
 
+def looks_like_logo(path):
+    """Simple heuristic to avoid showing logo-like images as the poster."""
+    if not path:
+        return False
+    p = path.lower()
+    # TMDB paths sometimes include 'logo', and logos are often svg or very small — treat those as non-posters.
+    if "logo" in p:
+        return True
+    if p.endswith(".svg"):  # svg is typically a logo or icon
+        return True
+    # other heuristics can be added here if needed
+    return False
+
 # ---------------- Routes ---------------- #
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -149,6 +162,11 @@ def index():
     ).json()
     genres = details.get("genres", [])
     main_genre = genres[0]["name"] if genres else "Unknown"
+
+    poster_path = details.get("poster_path")
+    # Don't expose poster if it looks like a logo or otherwise invalid
+    poster_to_show = poster_path if poster_path and not looks_like_logo(poster_path) else ""
+
     target = {
         "title": details["name"],
         "network": details["networks"][0]["name"] if details.get("networks") else "Unknown",
@@ -156,7 +174,7 @@ def index():
         "genre": main_genre,
         "number_of_seasons": details.get("number_of_seasons", "?"),
         "status": details.get("status", "Unknown"),
-        "poster": details.get("poster_path", ""),
+        "poster": poster_to_show,
         "trailer": None
     }
 

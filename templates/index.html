@@ -60,9 +60,14 @@ button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; backg
 <!-- Poster under guesses -->
 {% set max_blur = 20 %}
 <div>
+    {% if target.poster %}
     <img src="https://image.tmdb.org/t/p/w300{{ target.poster }}"
          class="poster"
          style="filter: blur({{ 0 if winner else (max_blur * (max_guesses - guesses|length)**2) // (max_guesses**2) }}px);">
+    {% else %}
+    <!-- No poster to show (either missing or detected as a logo) -->
+    <div class="poster" style="display:inline-block;"></div>
+    {% endif %}
 </div>
 
 <!-- Trailer shows only after game ends -->
