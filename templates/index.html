@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
 
-<!-- Prevent image preview on mobile/social sharing -->
+<!-- Open Graph -->
+<meta property="og:title" content="Guess the TV Show">
+<meta property="og:description" content="Can you guess the TV show from clues?">
 <meta property="og:image" content="{{ blank_image_url }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ request.url }}">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary"> <!-- Use 'summary' to avoid large image -->
+<meta name="twitter:title" content="Guess the TV Show">
+<meta name="twitter:description" content="Can you guess the TV show from clues?">
 <meta name="twitter:image" content="{{ blank_image_url }}">
-<meta name="twitter:card" content="summary"> <!-- or "summary_large_image" if you want a preview -->
 
 
   <style>
