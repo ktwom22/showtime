@@ -12,6 +12,10 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "secret123")
 TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
 
+# If your app is deployed behind a proxy or platform that changes the request host,
+# set SITE_URL to your public URL (e.g. "https://your-app.example.com") in env.
+SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
+
 MAX_GUESSES = 6
 DAILY_FILE = "daily_games.json"
 
@@ -33,16 +37,13 @@ def is_english_from_details(details):
     """
     if not details:
         return False
-    # Some TMDB responses include original_language (e.g., 'en')
     orig = details.get("original_language") or ""
     if orig.lower() == "en":
         return True
-    # Check spoken_languages array for an English entry (iso_639_1 == 'en')
     for lang in details.get("spoken_languages", []):
         iso = lang.get("iso_639_1", "")
         if iso.lower() == "en":
             return True
-        # fallback: check english name
         name = lang.get("english_name", "") or lang.get("name", "")
         if name and "english" in name.lower():
             return True
@@ -63,7 +64,7 @@ def looks_like_logo(path):
 def pick_random_show():
     """Pick a random TV show on allowed US networks/streaming services that has a trailer and is English-speaking."""
     try:
-        for attempt in range(50):  # More attempts to ensure we find one with a trailer in English
+        for attempt in range(50):
             page = random.randint(1, 10)
             res = requests.get(
                 "https://api.themoviedb.org/3/tv/popular",
@@ -79,16 +80,13 @@ def pick_random_show():
                     timeout=10
                 ).json()
 
-                # Ensure the show is English-speaking
                 if not is_english_from_details(details):
                     continue
 
-                # Check for allowed networks
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
                 if not any(net in ALLOWED_NETWORKS for net in networks):
                     continue
 
-                # Require a YouTube Trailer (strict)
                 videos = requests.get(
                     f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US",
                     timeout=10
@@ -181,6 +179,12 @@ def index():
     if not daily_game:
         return "No daily show available. Try again later."
 
+    # Build absolute logo URL for social meta (prefer SITE_URL if set)
+    if SITE_URL:
+        logo_url = SITE_URL + url_for('static', filename='logo.png')
+    else:
+        logo_url = url_for('static', filename='logo.png', _external=True)
+
     if "guesses" not in session:
         session["guesses"] = []
         session["winner"] = False
@@ -227,11 +231,9 @@ def index():
         # Find the first English result from the search results
         chosen = None
         for s in results:
-            # Prefer checking original_language if present (fast)
             if s.get("original_language", "").lower() == "en":
                 chosen = s
                 break
-            # Otherwise fetch details and check spoken_languages (rare)
             details_guess_tmp = requests.get(
                 f"https://api.themoviedb.org/3/tv/{s['id']}?api_key={TMDB_KEY}&language=en-US"
             ).json()
@@ -242,17 +244,18 @@ def index():
         if not chosen:
             return render_template("index.html", message="❌ No English show found.",
                                    guesses=guesses, target=target, winner=winner,
-                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES)
+                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES,
+                                   logo_url=logo_url)
 
         show = chosen
         details_guess = requests.get(
             f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
         ).json()
-        # Double-check it's English (safety)
         if not is_english_from_details(details_guess):
             return render_template("index.html", message="❌ No English show found.",
                                    guesses=guesses, target=target, winner=winner,
-                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES)
+                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES,
+                                   logo_url=logo_url)
 
         genres_guess = details_guess.get("genres", [])
         main_genre_guess = genres_guess[0]["name"] if genres_guess else "Unknown"
@@ -281,10 +284,11 @@ def index():
             trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
             target["trailer"] = f"https://www.youtube.com/embed/{trailer_key}" if trailer_key else None
 
+    # Final render — always pass logo_url so template can set OG/twitter meta to the site logo
     return render_template("index.html",
                            guesses=guesses, target=target, winner=winner,
                            game_over=game_over, trailer_url=target.get("trailer"),
-                           max_guesses=MAX_GUESSES)
+                           max_guesses=MAX_GUESSES, logo_url=logo_url)
 
 
 @app.route("/reset")
@@ -308,7 +312,6 @@ def autocomplete():
     results = []
     # Filter autocomplete results to English-language shows (using original_language where available)
     for s in res.get("results", [])[:50]:
-        # TMDB search result includes original_language which is cheap to check
         if s.get("original_language", "").lower() != "en":
             continue
         year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "N/A"
