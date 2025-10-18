@@ -8,14 +8,12 @@ from datetime import datetime
 
 load_dotenv()
 
-SITE_URL = os.getenv("https://showtime-production-4f0b.up.railway.app/", "").rstrip("/")  # set in env to your public URL, e.g. "https://your-domain.com"
-
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "secret123")
 TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
 
-# If your app is deployed behind a proxy or platform that changes the request host,
-# set SITE_URL to your public URL (e.g. "https://your-app.example.com") in env.
+# If your app is behind a proxy or hosted platform that rewrites host headers,
+# set SITE_URL to your public URL (e.g. "https://your-app.example.com") in your environment.
 SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
 
 MAX_GUESSES = 6
@@ -66,7 +64,7 @@ def looks_like_logo(path):
 def pick_random_show():
     """Pick a random TV show on allowed US networks/streaming services that has a trailer and is English-speaking."""
     try:
-        for attempt in range(50):
+        for attempt in range(50):  # More attempts to ensure we find one with a trailer in English
             page = random.randint(1, 10)
             res = requests.get(
                 "https://api.themoviedb.org/3/tv/popular",
@@ -82,13 +80,16 @@ def pick_random_show():
                     timeout=10
                 ).json()
 
+                # Ensure the show is English-speaking
                 if not is_english_from_details(details):
                     continue
 
+                # Check for allowed networks
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
                 if not any(net in ALLOWED_NETWORKS for net in networks):
                     continue
 
+                # Require a YouTube Trailer (strict)
                 videos = requests.get(
                     f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US",
                     timeout=10
@@ -181,11 +182,13 @@ def index():
     if not daily_game:
         return "No daily show available. Try again later."
 
-    # Build absolute logo URL for social meta (prefer SITE_URL if set)
+    # Build absolute logo and blank image URLs for social meta (prefer SITE_URL if set)
     if SITE_URL:
         logo_url = SITE_URL + url_for('static', filename='logo.png')
+        blank_image_url = SITE_URL + url_for('static', filename='blank.png')
     else:
         logo_url = url_for('static', filename='logo.png', _external=True)
+        blank_image_url = url_for('static', filename='blank.png', _external=True)
 
     if "guesses" not in session:
         session["guesses"] = []
@@ -228,14 +231,21 @@ def index():
         guess_title = request.form["guess"].strip()
         params = {"api_key": TMDB_KEY, "query": guess_title, "language": "en-US"}
         res = requests.get("https://api.themoviedb.org/3/search/tv", params=params).json()
+        if not res.get("results"):
+            return render_template("index.html", message="❌ No show found.",
+                                   guesses=guesses, target=target, winner=winner,
+                                   game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES,
+                                   logo_url=logo_url, blank_image_url=blank_image_url)
         results = res.get("results", [])
 
         # Find the first English result from the search results
         chosen = None
         for s in results:
+            # Prefer checking original_language if present (fast)
             if s.get("original_language", "").lower() == "en":
                 chosen = s
                 break
+            # Otherwise fetch details and check spoken_languages (rare)
             details_guess_tmp = requests.get(
                 f"https://api.themoviedb.org/3/tv/{s['id']}?api_key={TMDB_KEY}&language=en-US"
             ).json()
@@ -247,17 +257,18 @@ def index():
             return render_template("index.html", message="❌ No English show found.",
                                    guesses=guesses, target=target, winner=winner,
                                    game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES,
-                                   logo_url=logo_url)
+                                   logo_url=logo_url, blank_image_url=blank_image_url)
 
         show = chosen
         details_guess = requests.get(
             f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
         ).json()
+        # Double-check it's English (safety)
         if not is_english_from_details(details_guess):
             return render_template("index.html", message="❌ No English show found.",
                                    guesses=guesses, target=target, winner=winner,
                                    game_over=game_over, trailer_url=None, max_guesses=MAX_GUESSES,
-                                   logo_url=logo_url)
+                                   logo_url=logo_url, blank_image_url=blank_image_url)
 
         genres_guess = details_guess.get("genres", [])
         main_genre_guess = genres_guess[0]["name"] if genres_guess else "Unknown"
@@ -286,11 +297,11 @@ def index():
             trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
             target["trailer"] = f"https://www.youtube.com/embed/{trailer_key}" if trailer_key else None
 
-    # Final render — always pass logo_url so template can set OG/twitter meta to the site logo
+    # Final render — always pass logo_url and blank_image_url so template can set social meta to a tiny blank image
     return render_template("index.html",
                            guesses=guesses, target=target, winner=winner,
                            game_over=game_over, trailer_url=target.get("trailer"),
-                           max_guesses=MAX_GUESSES, logo_url=logo_url)
+                           max_guesses=MAX_GUESSES, logo_url=logo_url, blank_image_url=blank_image_url)
 
 
 @app.route("/reset")
