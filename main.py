@@ -8,6 +8,8 @@ from datetime import datetime
 
 load_dotenv()
 
+SITE_URL = os.getenv("https://showtime-production-4f0b.up.railway.app/", "").rstrip("/")  # set in env to your public URL, e.g. "https://your-domain.com"
+
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "secret123")
 TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
