@@ -15,59 +15,58 @@ TMDB_KEY = os.getenv("TMDB_API_KEY", "26d79b573974be9e3561d7ed1dc8e085")
 MAX_GUESSES = 6
 DAILY_FILE = "daily_games.json"
 
-# Allowed networks/services
 ALLOWED_NETWORKS = [
-    # Broadcast
     "ABC", "NBC", "CBS", "FOX", "The CW",
-    # Streaming
     "Netflix", "Hulu", "Disney+", "HBO Max", "Prime Video", "Apple TV+",
-    # Cable
     "AMC", "FX", "USA Network", "Syfy", "Showtime", "Starz", "TNT", "BBC America"
 ]
 
-# ---------------- Daily Show Logic ---------------- #
 def pick_random_show():
-    """Pick a random TV show on allowed US networks/streaming services that has a trailer."""
+    """Pick a random TV show on allowed networks/streaming services that has a usable YouTube trailer."""
     try:
-        for attempt in range(50):  # More attempts to ensure we find one with a trailer
+        for attempt in range(50):
             page = random.randint(1, 10)
             res = requests.get(
                 "https://api.themoviedb.org/3/tv/popular",
                 params={"api_key": TMDB_KEY, "language": "en-US", "page": page},
+                timeout=10
             ).json()
             shows = res.get("results", [])
             random.shuffle(shows)
 
             for show in shows:
                 details = requests.get(
-                    f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US"
+                    f"https://api.themoviedb.org/3/tv/{show['id']}?api_key={TMDB_KEY}&language=en-US",
+                    timeout=10
                 ).json()
 
-                # Check for allowed networks
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
                 if not any(net in ALLOWED_NETWORKS for net in networks):
                     continue
 
-                # Check for trailer
+                # Require a YouTube Trailer (strict)
                 videos = requests.get(
-                    f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US"
+                    f"https://api.themoviedb.org/3/tv/{show['id']}/videos?api_key={TMDB_KEY}&language=en-US",
+                    timeout=10
                 ).json()
-                trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
+                trailer_key = next(
+                    (v["key"] for v in videos.get("results", [])
+                     if v.get("type", "").lower() == "trailer" and v.get("site", "").lower() == "youtube"),
+                    None
+                )
 
                 if trailer_key:
                     return {
                         "id": show["id"],
-                        "name": show["name"],
-                        "poster": show.get("poster_path"),
+                        "name": show.get("name"),
+                        "poster_path": show.get("poster_path"),
                         "overview": show.get("overview", ""),
                         "trailer_key": trailer_key
                     }
-
         return None
     except Exception as e:
         print("Error picking random show:", e)
         return None
-
 
 def update_daily_games():
     now = datetime.now()
@@ -88,8 +87,9 @@ def update_daily_games():
             daily_data[current_date][slot] = {
                 "id": show["id"],
                 "name": show["name"],
-                "poster": show.get("poster"),
-                "overview": show.get("overview", "")
+                "poster_path": show.get("poster_path"),
+                "overview": show.get("overview", ""),
+                "trailer_key": show.get("trailer_key")
             }
             with open(DAILY_FILE, "w") as f:
                 json.dump(daily_data, f, indent=2)
@@ -108,7 +108,6 @@ def get_current_daily_show():
         return daily_data[current_date][slot]
     return None
 
-# ---------------- Helper Functions ---------------- #
 def compare_values(target, guess):
     def color(val1, val2):
         return "green" if val1 == val2 else "gray"
@@ -127,19 +126,15 @@ def compare_values(target, guess):
     }
 
 def looks_like_logo(path):
-    """Simple heuristic to avoid showing logo-like images as the poster."""
     if not path:
         return False
     p = path.lower()
-    # TMDB paths sometimes include 'logo', and logos are often svg or very small — treat those as non-posters.
     if "logo" in p:
         return True
-    if p.endswith(".svg"):  # svg is typically a logo or icon
+    if p.endswith(".svg"):
         return True
-    # other heuristics can be added here if needed
     return False
 
-# ---------------- Routes ---------------- #
 @app.route("/", methods=["GET", "POST"])
 def index():
     daily_game = get_current_daily_show()
@@ -163,28 +158,38 @@ def index():
     genres = details.get("genres", [])
     main_genre = genres[0]["name"] if genres else "Unknown"
 
-    poster_path = details.get("poster_path")
-    # Don't expose poster if it looks like a logo or otherwise invalid
+    poster_path = details.get("poster_path") or daily_game.get("poster_path")
     poster_to_show = poster_path if poster_path and not looks_like_logo(poster_path) else ""
 
+    # Prefer stored trailer_key (update_daily_games ensured it exists). Fallback to fetching videos.
+    trailer_key = daily_game.get("trailer_key")
+    if not trailer_key:
+        videos = requests.get(
+            f"https://api.themoviedb.org/3/tv/{daily_game['id']}/videos?api_key={TMDB_KEY}&language=en-US"
+        ).json()
+        trailer_key = next(
+            (v["key"] for v in videos.get("results", [])
+             if v.get("type", "").lower() == "trailer" and v.get("site", "").lower() == "youtube"),
+            None
+        )
+
     target = {
-        "title": details["name"],
+        "title": details.get("name"),
         "network": details["networks"][0]["name"] if details.get("networks") else "Unknown",
         "first_air_year": details.get("first_air_date", "????")[:4],
         "genre": main_genre,
         "number_of_seasons": details.get("number_of_seasons", "?"),
         "status": details.get("status", "Unknown"),
         "poster": poster_to_show,
-        "trailer": None
+        "trailer": f"https://www.youtube.com/embed/{trailer_key}" if trailer_key else None
     }
 
     game_over = len(guesses) >= MAX_GUESSES or winner
 
     if request.method == "POST":
-        guess_title = request.form["guess"].strip().lower()
-        res = requests.get(
-            f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_KEY}&query={guess_title}&language=en-US"
-        ).json()
+        guess_title = request.form["guess"].strip()
+        params = {"api_key": TMDB_KEY, "query": guess_title, "language": "en-US"}
+        res = requests.get("https://api.themoviedb.org/3/search/tv", params=params).json()
         if not res.get("results"):
             return render_template("index.html", message="❌ No show found.",
                                    guesses=guesses, target=target, winner=winner,
@@ -196,7 +201,7 @@ def index():
         genres_guess = details_guess.get("genres", [])
         main_genre_guess = genres_guess[0]["name"] if genres_guess else "Unknown"
         guess_data = {
-            "title": details_guess["name"],
+            "title": details_guess.get("name"),
             "network": details_guess["networks"][0]["name"] if details_guess.get("networks") else "Unknown",
             "first_air_year": details_guess.get("first_air_date", "????")[:4],
             "genre": main_genre_guess,
@@ -213,24 +218,15 @@ def index():
 
         game_over = len(guesses) >= MAX_GUESSES or winner
 
-        if game_over:
-            videos = requests.get(
-                f"https://api.themoviedb.org/3/tv/{daily_game['id']}/videos?api_key={TMDB_KEY}&language=en-US"
-            ).json()
-            trailer_key = next((v["key"] for v in videos.get("results", []) if v["type"] == "Trailer"), None)
-            target["trailer"] = f"https://www.youtube.com/embed/{trailer_key}" if trailer_key else None
-
     return render_template("index.html",
                            guesses=guesses, target=target, winner=winner,
                            game_over=game_over, trailer_url=target.get("trailer"),
                            max_guesses=MAX_GUESSES)
 
-
 @app.route("/reset")
 def reset():
     session.clear()
     return redirect(url_for("index"))
-
 
 @app.route("/autocomplete")
 def autocomplete():
@@ -250,11 +246,9 @@ def autocomplete():
         results.append({"name": s["name"], "year": year})
     return jsonify({"results": results})
 
-
 @app.route("/add_leader", methods=["POST"])
 def add_leader():
     return jsonify({"success": True})
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5005))

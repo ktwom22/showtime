@@ -1,24 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Open Graph (disable image preview) -->
-<meta property="og:title" content="Showtime - Guess the TV Show" />
-<meta property="og:description" content="Play the daily guessing game for TV shows!" />
-<meta property="og:type" content="website" />
-<meta property="og:url" content="https://showtime-production-4f0b.up.railway.app/" />
-<!-- Trick: use a 1×1 transparent pixel as og:image -->
-<meta property="og:image" content="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
-
-<!-- Twitter Card (minimal text-only card) -->
-<meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Showtime - Guess the TV Show" />
-<meta name="twitter:description" content="Play the daily guessing game for TV shows!" />
-<meta name="twitter:image" content="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
-
 <meta charset="UTF-8">
 <title>ShowGuess</title>
 <style>
 body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:0; }
+.header { display:flex; align-items:center; gap:12px; justify-content:center; padding:18px 0; }
+.site-logo { width:56px; height:56px; object-fit:contain; border-radius:8px; }
 .poster { width:300px; height:450px; background:#222; border-radius:12px; transition:filter 0.5s ease; margin:20px auto; object-fit:cover; }
 .guess-row { display:flex; justify-content:center; margin:8px 0; }
 .tile { background:#333; margin:4px; padding:10px 16px; border-radius:8px; width:120px; text-align:center; font-weight:bold; }
@@ -34,7 +22,10 @@ button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; backg
 </head>
 <body>
 
-<h1>🎬 Guess the TV Show</h1>
+<div class="header">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="ShowGuess logo" class="site-logo">
+    <h1 style="margin:0;">🎬 Guess the TV Show</h1>
+</div>
 
 <div class="autocomplete-container">
     <form method="POST" id="guess-form">
@@ -46,7 +37,6 @@ button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; backg
 
 {% if message %}<h3>{{ message }}</h3>{% endif %}
 
-<!-- Stacked guess tiles -->
 {% for g in guesses %}
 <div class="guess-row">
     <div class="tile {{ g.compare.network.color }}">{{ g.guess.network }}</div>
@@ -57,7 +47,6 @@ button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; backg
 </div>
 {% endfor %}
 
-<!-- Poster under guesses -->
 {% set max_blur = 20 %}
 <div>
     {% if target.poster %}
@@ -65,12 +54,10 @@ button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; backg
          class="poster"
          style="filter: blur({{ 0 if winner else (max_blur * (max_guesses - guesses|length)**2) // (max_guesses**2) }}px);">
     {% else %}
-    <!-- No poster to show (either missing or detected as a logo) -->
     <div class="poster" style="display:inline-block;"></div>
     {% endif %}
 </div>
 
-<!-- Trailer shows only after game ends -->
 {% if game_over %}
     {% if trailer_url %}
     <div style="margin-top:20px;">
@@ -96,7 +83,7 @@ input.addEventListener("input", async () => {
         div.className = "autocomplete-item";
         div.textContent = `${show.name} (${show.year})`;
         div.addEventListener("click", () => {
-            input.value = show.name; // Only the name
+            input.value = show.name;
             resultsDiv.innerHTML = "";
         });
         resultsDiv.appendChild(div);
