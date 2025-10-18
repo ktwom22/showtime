@@ -1,30 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Put this in the <head> of your templates/index.html (replace/merge with your existing head). -->
-<head>
-    <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ShowGuess</title>
 
-  <!-- Force scrapers to use a tiny transparent image (prevents them choosing the poster) -->
-  <meta property="og:title" content="ShowGuess - Guess the TV Show" />
-  <meta property="og:description" content="Play the daily guessing game for TV shows!" />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ request.url_root }}" />
-  <meta property="og:image" content="{{ blank_image_url }}" />
-  <meta property="og:image:secure_url" content="{{ blank_image_url }}" />
-  <meta property="og:image:type" content="image/png" />
+<!-- Prevent image preview on mobile/social sharing -->
+<meta property="og:image" content="{{ blank_image_url }}">
+<meta name="twitter:image" content="{{ blank_image_url }}">
+<meta name="twitter:card" content="summary"> <!-- or "summary_large_image" if you want a preview -->
 
-  <!-- Use the small summary card (no large image) for Twitter -->
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="ShowGuess - Guess the TV Show" />
-  <meta name="twitter:description" content="Play the daily guessing game for TV shows!" />
-  <meta name="twitter:image" content="{{ blank_image_url }}" />
-
-  <!-- Fallback favicons still use your logo -->
-  <link rel="icon" href="{{ logo_url }}" />
-  <link rel="apple-touch-icon" href="{{ logo_url }}" />
 
   <style>
     body { font-family: Arial, background:#111; color:white; text-align:center; margin:0; padding:0; }
