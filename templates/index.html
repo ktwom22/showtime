@@ -1,49 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Open Graph -->
-  <meta property="og:title" content="Guess the TV Show">
-  <meta property="og:description" content="Can you guess the TV show from clues?">
-  <meta property="og:image" content="{{ blank_image_url }}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="{{ request.url }}">
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Guess the TV Show">
-  <meta name="twitter:description" content="Can you guess the TV show from clues?">
-  <meta name="twitter:image" content="{{ blank_image_url }}">
-
-  <!-- Discourage image indexing -->
-  <meta name="robots" content="noimageindex, noarchive">
-
-  <style>
-    body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:0; }
-    .poster { width:300px; height:450px; background:#222; border-radius:12px; transition:filter 0.5s ease; margin:20px auto; object-fit:cover; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Guess the TV Show</title>
+<style>
+  body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:20px; }
+  .poster { width:300px; height:450px; border-radius:12px; margin:20px auto; object-fit:cover; transition:filter 0.6s ease; }
+  .guess-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; max-width:850px; margin:20px auto; }
+  .tile { padding:8px; border-radius:6px; font-weight:bold; text-align:center; }
+  .green { background:#4CAF50; } .gray { background:#555; }
+  .autocomplete-container { position:relative; display:inline-block; margin-bottom:10px; }
+  #autocomplete-results { background:#222; border:1px solid #555; border-radius:6px; max-width:320px; position:absolute; top:44px; left:0; right:0; z-index:1000; color:white; overflow:auto; max-height:240px; }
+  .autocomplete-item { padding:8px 10px; cursor:pointer; }
+  .autocomplete-item:hover { background:#333; }
+  input { padding:8px; border-radius:5px; width:260px; border:none; }
+  button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; background:#0bf; color:#fff; }
+  iframe { margin-top:20px; border-radius:12px; }
+  .message { margin-top:12px; color:#ddd; font-size:14px; }
+</style>
 </head>
 <body>
 
-  <h1>🎬 Guess the TV Show</h1>
+<h1>🎬 Guess the TV Show</h1>
 
-  {% set max_blur = 20 %}
-  <div>
-    {% if target.poster %}
-    <noscript></noscript>
-    https://image.tmdb.org/t/p/w300{{ target.poster }}
-    {% else %}
-    <div class="poster" style="display:inline-block;"></div>
-    {% endif %}
+<div class="autocomplete-container">
+  <form id="guess-form">
+    <input id="guess-input" name="guess" placeholder="Enter TV show..." autocomplete="off" required />
+    <button type="submit">Guess</button>
+  </form>
+  <div id="autocomplete-results" style="display:none;"></div>
+</div>
+
+<div id="message" class="message"></div>
+
+<!-- Guesses -->
+<div id="guesses-wrapper">
+  {% if guesses %}
+  <div class="guess-grid" id="guess-grid">
+    {% for g in guesses %}
+      <div class="tile" style="background:{{ g.compare.network.color }}">Network: {{ g.guess.network }}</div>
+      <div class="tile" style="background:{{ g.compare.first_air_year.color }}">Year: {{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
+      <div class="tile" style="background:{{ g.compare.genre.color }}">Genre: {{ g.guess.genre }}</div>
+      <div class="tile" style="background:{{ g.compare.number_of_seasons.color }}">Seasons: {{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
+      <div class="tile" style="background:{{ g.compare.status.color }}">Status: {{ g.guess.status }}</div>
+    {% endfor %}
   </div>
+  {% else %}
+  <div id="guess-grid" class="guess-grid" style="opacity:0.6;"></div>
+  {% endif %}
+</div>
 
-  <script>
-    document.querySelectorAll('img[data-src]').forEach(img => {
-      img.src = img.getAttribute('data-src');
-    });
-  </script>
+<!-- Poster -->
+{% set remaining = max_guesses - guesses|length %}
+{% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
+<div>
+  {% if target.poster %}
+    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" />
+  {% else %}
+    <div id="poster-img" class="poster" style="background:#222;"></div>
+  {% endif %}
+</div>
+
+<!-- Trailer -->
+<div id="trailer-area">
+{% if game_over and target.trailer %}
+  <iframe id="trailer" width="420" height="236" src="{{ target.trailer }}" frameborder="0" allowfullscreen></iframe>
+{% else %}
+  <div style="height:1px;"></div>
+{% endif %}
+</div>
+
+<script>
+const guessInput = document.getElementById('guess-input');
+const autocompleteResults = document.getElementById('autocomplete-results');
+const form = document.getElementById('guess-form');
+const guessGrid = document.getElementById('guess-grid');
+const posterImg = document.getElementById('poster-img');
+const messageDiv = document.getElementById('message');
+const trailerArea = document.getElementById('trailer-area');
+
+let debounceTimer = null;
+let lastQuery = "";
+
+// helper to render guesses array into grid
+function renderGuesses(guesses) {
+  if (!Array.isArray(guesses) || guesses.length === 0) {
+    guessGrid.innerHTML = "";
+    return;
+  }
+  let html = "";
+  guesses.forEach(g => {
+    const comp = g.compare || {};
+    html += `<div class="tile" style="background:${comp.network?.color || 'gray'}">Network: ${g.guess.network}</div>`;
+    html += `<div class="tile" style="background:${comp.first_air_year?.color || 'gray'}">Year: ${g.guess.first_air_year} ${comp.first_air_year?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${comp.genre?.color || 'gray'}">Genre: ${g.guess.genre}</div>`;
+    html += `<div class="tile" style="background:${comp.number_of_seasons?.color || 'gray'}">Seasons: ${g.guess.number_of_seasons} ${comp.number_of_seasons?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${comp.status?.color || 'gray'}">Status: ${g.guess.status}</div>`;
+  });
+  guessGrid.innerHTML = html;
+}
+
+// autocomplete with debounce
+guessInput.addEventListener('input', (e) => {
+  const q = e.target.value.trim();
+  if (q === "") { autocompleteResults.style.display = "none"; autocompleteResults.innerHTML = ""; return; }
+  if (q === lastQuery) return;
+  lastQuery = q;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/autocomplete?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      autocompleteResults.innerHTML = "";
+      if (!data.results || data.results.length === 0) { autocompleteResults.style.display = "none"; return; }
+      data.results.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.textContent = `${item.name} (${item.year})`;
+        div.addEventListener('click', () => {
+          guessInput.value = item.name;
+          autocompleteResults.innerHTML = "";
+          autocompleteResults.style.display = "none";
+        });
+        autocompleteResults.appendChild(div);
+      });
+      autocompleteResults.style.display = "block";
+    } catch (err) {
+      console.error('Autocomplete error', err);
+      autocompleteResults.style.display = "none";
+    }
+  }, 250);
+});
+
+// close autocomplete if clicking outside
+document.addEventListener('click', (e) => {
+  if (!autocompleteResults.contains(e.target) && e.target !== guessInput) {
+    autocompleteResults.style.display = "none";
+  }
+});
+
+// submit guess via /guess JSON endpoint
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const guess = guessInput.value.trim();
+  if (!guess) return;
+  messageDiv.textContent = "Submitting guess...";
+  try {
+    const formData = new FormData();
+    formData.append('guess', guess);
+    const res = await fetch('/guess', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (res.status !== 200) {
+      messageDiv.textContent = data.error || "Error submitting guess";
+      console.error('Guess error', data);
+      return;
+    }
+    // update DOM
+    renderGuesses(data.guesses || []);
+    // update blur
+    const blur = data.blur_level !== undefined ? data.blur_level : 0;
+    if (posterImg) posterImg.style.filter = `blur(${blur}px)`;
+    // update trailer if game_over and trailer exists
+    if (data.game_over && data.target && data.target.trailer) {
+      trailerArea.innerHTML = `<iframe id="trailer" width="420" height="236" src="${data.target.trailer}" frameborder="0" allowfullscreen></iframe>`;
+    }
+    messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
+    guessInput.value = "";
+    autocompleteResults.innerHTML = "";
+    autocompleteResults.style.display = "none";
+  } catch (err) {
+    console.error('Submit error', err);
+    messageDiv.textContent = "Network or server error. Check console and Flask logs.";
+  }
+});
+</script>
 
 </body>
 </html>
