@@ -305,10 +305,10 @@ def reset():
    # app.run(host="0.0.0.0", port=5005, debug=True)
 
 
-##for flask deployment
-#if __name__ == "__main__":
+#for flask deployment
+if __name__ == "__main__":
 
-   # port = int(os.environ.get("PORT", 5005))  # Railway sets PORT dynamically
-    #debug = os.environ.get("FLASK_DEBUG", "0") == "1"  # optional, enable debug via env
+    port = int(os.environ.get("PORT", 5005))  # Railway sets PORT dynamically
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"  # optional, enable debug via env
 
-    #app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=debug)
