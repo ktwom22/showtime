@@ -2,22 +2,40 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Guess the TV Show</title>
 <style>
-  body { font-family: Arial; background:#111; color:white; text-align:center; margin:0; padding:20px; }
-  .poster { width:300px; height:450px; border-radius:12px; margin:20px auto; object-fit:cover; transition:filter 0.6s ease; }
-  .guess-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; max-width:850px; margin:20px auto; }
-  .tile { padding:8px; border-radius:6px; font-weight:bold; text-align:center; }
-  .green { background:#4CAF50; } .gray { background:#555; }
-  .autocomplete-container { position:relative; display:inline-block; margin-bottom:10px; }
-  #autocomplete-results { background:#222; border:1px solid #555; border-radius:6px; max-width:320px; position:absolute; top:44px; left:0; right:0; z-index:1000; color:white; overflow:auto; max-height:240px; }
-  .autocomplete-item { padding:8px 10px; cursor:pointer; }
-  .autocomplete-item:hover { background:#333; }
-  input { padding:8px; border-radius:5px; width:260px; border:none; }
-  button { padding:8px 12px; border-radius:5px; cursor:pointer; border:none; background:#0bf; color:#fff; }
-  iframe { margin-top:20px; border-radius:12px; }
-  .message { margin-top:12px; color:#ddd; font-size:14px; }
+  body { font-family: Arial, sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
+  h1 { margin-bottom: 10px; }
+
+  .autocomplete-container { position: relative; display: inline-block; margin-bottom: 10px; width: 90%; max-width: 320px; }
+  input { padding: 8px; border-radius: 5px; width: 100%; border: none; box-sizing: border-box; }
+  button { padding: 8px 12px; border-radius: 5px; cursor: pointer; border: none; background: #0bf; color: #fff; margin-top: 6px; width: 100%; }
+
+  #autocomplete-results { background: #222; border: 1px solid #555; border-radius: 6px; position: absolute; top: 40px; left: 0; right: 0; z-index: 1000; color: white; overflow-y: auto; max-height: 240px; display: none; }
+  .autocomplete-item { padding: 8px 10px; cursor: pointer; }
+  .autocomplete-item:hover { background: #333; }
+
+  .message { margin-top: 10px; color: #ddd; font-size: 14px; }
+
+  .poster-container { position: relative; display: inline-block; margin: 20px auto; width: 90%; max-width: 300px; }
+  .poster { width: 100%; height: auto; border-radius: 12px; object-fit: cover; transition: filter 0.6s ease; display: block; }
+
+  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; opacity: 0; animation: fadeIn 1s forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .guess-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 100%; margin: 10px auto; }
+  .tile { padding: 6px 4px; border-radius: 6px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .green { background: #4CAF50; } .gray { background: #555; }
+
+  .grid-header .tile { background: #222; font-weight: bold; }
+
+  #results-panel { display: none; margin-top: 20px; border: 1px solid #555; padding: 10px; border-radius: 12px; max-width: 400px; margin-left: auto; margin-right: auto; }
+  #results-panel p { margin-bottom: 8px; font-weight: bold; }
+  #results-panel button { margin: 4px; width: 120px; }
+
+  @media (max-width: 600px) { .tile { font-size: 11px; padding: 4px 2px; } }
+  @media (max-width: 400px) { .tile { font-size: 10px; padding: 3px 2px; } }
 </style>
 </head>
 <body>
@@ -29,46 +47,52 @@
     <input id="guess-input" name="guess" placeholder="Enter TV show..." autocomplete="off" required />
     <button type="submit">Guess</button>
   </form>
-  <div id="autocomplete-results" style="display:none;"></div>
+  <div id="autocomplete-results"></div>
 </div>
 
 <div id="message" class="message"></div>
 
-<!-- Guesses -->
-<div id="guesses-wrapper">
+<div class="guess-grid grid-header">
+  <div class="tile">Network</div>
+  <div class="tile">Year</div>
+  <div class="tile">Genre</div>
+  <div class="tile">Seasons</div>
+  <div class="tile">Status</div>
+</div>
+
+<div id="guess-grid" class="guess-grid">
   {% if guesses %}
-  <div class="guess-grid" id="guess-grid">
     {% for g in guesses %}
-      <div class="tile" style="background:{{ g.compare.network.color }}">Network: {{ g.guess.network }}</div>
-      <div class="tile" style="background:{{ g.compare.first_air_year.color }}">Year: {{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
-      <div class="tile" style="background:{{ g.compare.genre.color }}">Genre: {{ g.guess.genre }}</div>
-      <div class="tile" style="background:{{ g.compare.number_of_seasons.color }}">Seasons: {{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
-      <div class="tile" style="background:{{ g.compare.status.color }}">Status: {{ g.guess.status }}</div>
+      <div class="tile" style="background:{{ g.compare.network.color }}">{{ g.guess.network }}</div>
+      <div class="tile" style="background:{{ g.compare.first_air_year.color }}">{{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
+      <div class="tile" style="background:{{ g.compare.genre.color }}">{{ g.guess.genre }}</div>
+      <div class="tile" style="background:{{ g.compare.number_of_seasons.color }}">{{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
+      <div class="tile" style="background:{{ g.compare.status.color }}">{{ g.guess.status }}</div>
     {% endfor %}
-  </div>
-  {% else %}
-  <div id="guess-grid" class="guess-grid" style="opacity:0.6;"></div>
   {% endif %}
 </div>
 
-<!-- Poster -->
-{% set remaining = max_guesses - guesses|length %}
-{% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
-<div>
+<div class="poster-container">
+  {% set remaining = max_guesses - guesses|length %}
+  {% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
   {% if target.poster %}
     <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" />
   {% else %}
-    <div id="poster-img" class="poster" style="background:#222;"></div>
+    <div id="poster-img" class="poster" style="background:#222; height:450px;"></div>
   {% endif %}
+  <div id="trailer-area">
+    {% if game_over and target.trailer %}
+      <iframe id="trailer" src="{{ target.trailer }}" frameborder="0" allowfullscreen></iframe>
+    {% endif %}
+  </div>
 </div>
 
-<!-- Trailer -->
-<div id="trailer-area">
-{% if game_over and target.trailer %}
-  <iframe id="trailer" width="420" height="236" src="{{ target.trailer }}" frameborder="0" allowfullscreen></iframe>
-{% else %}
-  <div style="height:1px;"></div>
-{% endif %}
+<!-- Results panel -->
+<div id="results-panel">
+  <p>🎉 Game Over! Share your results or watch the trailer:</p>
+  <pre id="emoji-grid" style="text-align:center; font-size:18px;"></pre>
+  <button id="share-btn">Share Results</button>
+  <button id="watch-trailer-btn">Watch Trailer</button>
 </div>
 
 <script>
@@ -80,31 +104,59 @@ const posterImg = document.getElementById('poster-img');
 const messageDiv = document.getElementById('message');
 const trailerArea = document.getElementById('trailer-area');
 
+const resultsPanel = document.getElementById('results-panel');
+const emojiGridEl = document.getElementById('emoji-grid');
+const shareBtn = document.getElementById('share-btn');
+const watchTrailerBtn = document.getElementById('watch-trailer-btn');
+
 let debounceTimer = null;
 let lastQuery = "";
 
-// helper to render guesses array into grid
+// render guess grid
 function renderGuesses(guesses) {
-  if (!Array.isArray(guesses) || guesses.length === 0) {
-    guessGrid.innerHTML = "";
-    return;
-  }
+  if (!Array.isArray(guesses) || guesses.length === 0) { guessGrid.innerHTML = ""; return; }
   let html = "";
   guesses.forEach(g => {
     const comp = g.compare || {};
-    html += `<div class="tile" style="background:${comp.network?.color || 'gray'}">Network: ${g.guess.network}</div>`;
-    html += `<div class="tile" style="background:${comp.first_air_year?.color || 'gray'}">Year: ${g.guess.first_air_year} ${comp.first_air_year?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${comp.genre?.color || 'gray'}">Genre: ${g.guess.genre}</div>`;
-    html += `<div class="tile" style="background:${comp.number_of_seasons?.color || 'gray'}">Seasons: ${g.guess.number_of_seasons} ${comp.number_of_seasons?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${comp.status?.color || 'gray'}">Status: ${g.guess.status}</div>`;
+    html += `<div class="tile" style="background:${comp.network?.color || 'gray'}">${g.guess.network}</div>`;
+    html += `<div class="tile" style="background:${comp.first_air_year?.color || 'gray'}">${g.guess.first_air_year} ${comp.first_air_year?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${comp.genre?.color || 'gray'}">${g.guess.genre}</div>`;
+    html += `<div class="tile" style="background:${comp.number_of_seasons?.color || 'gray'}">${g.guess.number_of_seasons} ${comp.number_of_seasons?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${comp.status?.color || 'gray'}">${g.guess.status}</div>`;
   });
   guessGrid.innerHTML = html;
 }
 
-// autocomplete with debounce
+// build emoji grid
+function buildEmojiGrid(guesses) {
+  let grid = '';
+  guesses.forEach(g => {
+    const c = g.compare || {};
+    const row = [
+      c.network?.color === 'green' ? '📺' : (c.network?.color === 'yellow' ? '🟡' : '⬛'),
+      c.first_air_year?.color === 'green' ? '📺' : (c.first_air_year?.color === 'yellow' ? '🟡' : '⬛'),
+      c.genre?.color === 'green' ? '📺' : (c.genre?.color === 'yellow' ? '🟡' : '⬛'),
+      c.number_of_seasons?.color === 'green' ? '📺' : (c.number_of_seasons?.color === 'yellow' ? '🟡' : '⬛'),
+      c.status?.color === 'green' ? '📺' : (c.status?.color === 'yellow' ? '🟡' : '⬛')
+    ];
+    grid += row.join('') + '\n';
+  });
+  return grid;
+}
+
+function showResultsPanel(guesses, trailer) {
+  emojiGridEl.textContent = buildEmojiGrid(guesses);
+  resultsPanel.style.display = 'block';
+  shareBtn.onclick = () => navigator.clipboard.writeText(buildEmojiGrid(guesses));
+  watchTrailerBtn.onclick = () => {
+    if(trailer) window.open(trailer, '_blank');
+  };
+}
+
+// Autocomplete
 guessInput.addEventListener('input', (e) => {
   const q = e.target.value.trim();
-  if (q === "") { autocompleteResults.style.display = "none"; autocompleteResults.innerHTML = ""; return; }
+  if (!q) { autocompleteResults.style.display = 'none'; autocompleteResults.innerHTML = ''; return; }
   if (q === lastQuery) return;
   lastQuery = q;
   clearTimeout(debounceTimer);
@@ -113,34 +165,21 @@ guessInput.addEventListener('input', (e) => {
       const res = await fetch(`/autocomplete?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       autocompleteResults.innerHTML = "";
-      if (!data.results || data.results.length === 0) { autocompleteResults.style.display = "none"; return; }
+      if (!data.results || data.results.length === 0) { autocompleteResults.style.display = 'none'; return; }
       data.results.forEach(item => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.textContent = `${item.name} (${item.year})`;
-        div.addEventListener('click', () => {
-          guessInput.value = item.name;
-          autocompleteResults.innerHTML = "";
-          autocompleteResults.style.display = "none";
-        });
+        div.addEventListener('click', () => { guessInput.value = item.name; autocompleteResults.innerHTML = ""; autocompleteResults.style.display = 'none'; });
         autocompleteResults.appendChild(div);
       });
-      autocompleteResults.style.display = "block";
-    } catch (err) {
-      console.error('Autocomplete error', err);
-      autocompleteResults.style.display = "none";
-    }
+      autocompleteResults.style.display = 'block';
+    } catch (err) { console.error('Autocomplete error', err); autocompleteResults.style.display = 'none'; }
   }, 250);
 });
+document.addEventListener('click', (e) => { if (!autocompleteResults.contains(e.target) && e.target !== guessInput) autocompleteResults.style.display = 'none'; });
 
-// close autocomplete if clicking outside
-document.addEventListener('click', (e) => {
-  if (!autocompleteResults.contains(e.target) && e.target !== guessInput) {
-    autocompleteResults.style.display = "none";
-  }
-});
-
-// submit guess via /guess JSON endpoint
+// Submit guess
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const guess = guessInput.value.trim();
@@ -151,29 +190,25 @@ form.addEventListener('submit', async (e) => {
     formData.append('guess', guess);
     const res = await fetch('/guess', { method: 'POST', body: formData });
     const data = await res.json();
-    if (res.status !== 200) {
-      messageDiv.textContent = data.error || "Error submitting guess";
-      console.error('Guess error', data);
-      return;
-    }
-    // update DOM
+    if (res.status !== 200) { messageDiv.textContent = data.error || "Error submitting guess"; return; }
     renderGuesses(data.guesses || []);
-    // update blur
     const blur = data.blur_level !== undefined ? data.blur_level : 0;
     if (posterImg) posterImg.style.filter = `blur(${blur}px)`;
-    // update trailer if game_over and trailer exists
     if (data.game_over && data.target && data.target.trailer) {
-      trailerArea.innerHTML = `<iframe id="trailer" width="420" height="236" src="${data.target.trailer}" frameborder="0" allowfullscreen></iframe>`;
+      trailerArea.innerHTML = `<iframe id="trailer" src="${data.target.trailer}" frameborder="0" allowfullscreen></iframe>`;
+      showResultsPanel(data.guesses, data.target.trailer);
     }
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
     guessInput.value = "";
     autocompleteResults.innerHTML = "";
     autocompleteResults.style.display = "none";
-  } catch (err) {
-    console.error('Submit error', err);
-    messageDiv.textContent = "Network or server error. Check console and Flask logs.";
-  }
+  } catch (err) { console.error(err); messageDiv.textContent = "Network or server error."; }
 });
+
+// Show results panel on page load if game is already over
+{% if game_over %}
+showResultsPanel({{ guesses|tojson }}, "{{ target.trailer }}");
+{% endif %}
 </script>
 
 </body>

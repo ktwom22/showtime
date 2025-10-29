@@ -34,9 +34,6 @@ def is_english(details):
     return False
 
 def pick_random_show():
-    """
-    Try multiple TMDB pages; if nothing acceptable, return fallback show.
-    """
     try:
         for attempt in range(50):
             page = random.randint(1, 10)
@@ -46,8 +43,6 @@ def pick_random_show():
                 timeout=8
             )
             if res.status_code != 200:
-                # log and continue
-                print("TMDB /tv/popular error", res.status_code, res.text)
                 continue
             shows = res.json().get("results", [])
             random.shuffle(shows)
@@ -66,7 +61,6 @@ def pick_random_show():
                 if not is_english(details):
                     continue
                 networks = [n.get("name") for n in details.get("networks", []) if n.get("name")]
-                # require some network info (loose)
                 if not networks:
                     continue
                 videos_res = requests.get(
@@ -88,7 +82,6 @@ def pick_random_show():
                         "poster": show.get("poster_path"),
                         "trailer_key": trailer_key
                     }
-        # fallback
         return {
             "id": 1399,
             "name": "Game of Thrones",
@@ -123,7 +116,6 @@ def update_daily_games():
             daily_data[current_date][slot] = show
             with open(DAILY_FILE, "w") as f:
                 json.dump(daily_data, f, indent=2)
-            print("Saved daily show:", show["name"])
 
 def get_current_daily_show():
     try:
@@ -176,7 +168,7 @@ def index():
         update_daily_games()
         daily_game = get_current_daily_show()
     if not daily_game:
-        return "No daily show available. Check TMDB key or logs.", 500
+        return "No daily show available.", 500
 
     if "guesses" not in session:
         session["guesses"] = []
@@ -185,7 +177,6 @@ def index():
     guesses = session.get("guesses", [])
     winner = session.get("winner", False)
 
-    # Fetch live details for target
     details_res = requests.get(
         f"https://api.themoviedb.org/3/tv/{daily_game['id']}",
         params={"api_key": TMDB_KEY, "language": "en-US"},
@@ -193,7 +184,6 @@ def index():
     )
     details = details_res.json() if details_res.status_code == 200 else {}
     target = build_target_from_details(details, daily_game)
-
     game_over = len(guesses) >= MAX_GUESSES or winner
 
     return render_template("index.html",
@@ -218,19 +208,17 @@ def guess():
         if not guess_title:
             return jsonify({"error": "Empty guess"}), 400
 
-        # Search TMDB for guess
         search_res = requests.get(
             "https://api.themoviedb.org/3/search/tv",
             params={"api_key": TMDB_KEY, "query": guess_title, "language": "en-US", "include_adult": "false"},
             timeout=8
         )
         if search_res.status_code != 200:
-            print("TMDB search failed", search_res.status_code, search_res.text)
             return jsonify({"error": "TMDB search failed"}), 500
 
         results = search_res.json().get("results", [])
         if not results:
-            return jsonify({"error": "No shows found for that guess"}), 404
+            return jsonify({"error": "No shows found"}), 404
 
         show = results[0]
         details_guess_res = requests.get(
@@ -249,7 +237,6 @@ def guess():
             "status": details_guess.get("status", "Unknown"),
         }
 
-        # Build target for comparison
         details_target_res = requests.get(
             f"https://api.themoviedb.org/3/tv/{daily_game['id']}",
             params={"api_key": TMDB_KEY, "language": "en-US"},
@@ -257,7 +244,6 @@ def guess():
         )
         details_target = details_target_res.json() if details_target_res.status_code == 200 else {}
         target = build_target_from_details(details_target, daily_game)
-
         compare = compare_values(target, guess_data)
 
         guesses = session.get("guesses", [])
@@ -315,9 +301,14 @@ def reset():
     session.clear()
     return redirect(url_for("index"))
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
+   # app.run(host="0.0.0.0", port=5005, debug=True)
 
-    port = int(os.environ.get("PORT", 5005))  # Railway sets PORT dynamically
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"  # optional, enable debug via env
 
-    app.run(host="0.0.0.0", port=port, debug=debug)
+##for flask deployment
+#if __name__ == "__main__":
+
+   # port = int(os.environ.get("PORT", 5005))  # Railway sets PORT dynamically
+    #debug = os.environ.get("FLASK_DEBUG", "0") == "1"  # optional, enable debug via env
+
+    #app.run(host="0.0.0.0", port=port, debug=debug)
