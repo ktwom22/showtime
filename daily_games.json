@@ -1,0 +1,41 @@
+{
+  "2025-10-17": {
+    "morning": {
+      "id": 1622,
+      "name": "Supernatural",
+      "poster": "/KoYWXbnYuS3b0GyQPkbuexlVK9.jpg",
+      "overview": "When they were boys, Sam and Dean Winchester lost their mother to a mysterious and demonic supernatural force. Subsequently, their father raised them to be soldiers. He taught them about the paranormal evil that lives in the dark corners and on the back roads of America ... and he taught them how to kill it. Now, the Winchester brothers crisscross the country in their '67 Chevy Impala, battling every kind of supernatural threat they encounter along the way. "
+    },
+    "evening": {
+      "id": 1973,
+      "name": "24",
+      "poster": "/iq6yrZ5LEDXf1ArCOYLq8PIUBpV.jpg",
+      "overview": "Counterterrorism agent Jack Bauer fights the bad guys of the world, a day at a time. With each week's episode unfolding in real-time, \"24\" covers a single day in the life of Bauer each season."
+    }
+  },
+  "2025-10-23": {
+    "evening": {
+      "id": 205715,
+      "name": "Gen V",
+      "poster": "/tEv842Nd5uMSavURG4aQO1pNtst.jpg",
+      "overview": "At America's only college for superheroes, gifted students put their moral boundaries to the test, competing for the university's top ranking, and a chance to join The Seven, Vought International's elite superhero team. When the school's dark secrets come to light, they must decide what kind of heroes they want to become.",
+      "trailer_key": "uhjJ5brX-bY"
+    }
+  },
+  "2025-10-28": {
+    "morning": {
+      "id": 1399,
+      "name": "Game of Thrones",
+      "poster": "/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg",
+      "trailer_key": "giYeaKsXnsI"
+    }
+  },
+  "2025-10-29": {
+    "morning": {
+      "id": 456,
+      "name": "The Simpsons",
+      "poster": "/uWpG7GqfKGQqX4YMAo3nv5OrglV.jpg",
+      "trailer_key": "_jgYEYERYFQ"
+    }
+  }
+}
