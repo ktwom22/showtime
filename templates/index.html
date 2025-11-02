@@ -2,21 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Guess the TV Show</title>
 <style>
   body { font-family: Arial, sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
   h1 { margin-bottom: 10px; }
 
   .autocomplete-container { position: relative; display: inline-block; margin-bottom: 10px; width: 90%; max-width: 320px; }
-  input {
-    padding: 8px;
-    border-radius: 5px;
-    width: 100%;
-    border: none;
-    box-sizing: border-box;
-    font-size: 16px; /* prevents mobile zoom */
-  }
+  input { padding: 8px; border-radius: 5px; width: 100%; border: none; box-sizing: border-box; font-size:16px; }
   button { padding: 8px 12px; border-radius: 5px; cursor: pointer; border: none; background: #0bf; color: #fff; margin-top: 6px; width: 100%; }
 
   #autocomplete-results { background: #222; border: 1px solid #555; border-radius: 6px; position: absolute; top: 40px; left: 0; right: 0; z-index: 1000; color: white; overflow-y: auto; max-height: 240px; display: none; }
@@ -26,7 +19,10 @@
   .message { margin-top: 10px; color: #ddd; font-size: 14px; }
 
   .poster-container { position: relative; display: inline-block; margin: 20px auto; width: 90%; max-width: 300px; }
-  .poster { width: 100%; height: auto; border-radius: 12px; object-fit: cover; transition: filter 1.2s ease; display: block; }
+  .poster { width: 100%; height: 450px; border-radius: 12px; background-size: cover; background-position: center; transition: filter 1s ease; }
+
+  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; opacity: 0; animation: fadeIn 1s forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
 
   .guess-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 100%; margin: 10px auto; }
   .tile { padding: 6px 4px; border-radius: 6px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -34,21 +30,9 @@
 
   .grid-header .tile { background: #222; font-weight: bold; }
 
-  /* Results overlay */
-  .results-overlay {
-    position: absolute;
-    top: 0; left: 50%; transform: translateX(-50%);
-    width: 90%; max-width: 320px;
-    background: rgba(0,0,0,0.85);
-    padding: 16px;
-    border-radius: 12px;
-    z-index: 100;
-    text-align: center;
-  }
-
-  .results-overlay pre { text-align: center; font-size: 18px; margin: 10px 0; }
-
-  .results-overlay button { margin: 6px 0; width: 80%; }
+  #results-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); color: #fff; border-radius:12px; display:flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; padding: 10px; box-sizing: border-box; }
+  #results-overlay pre { font-size: 18px; text-align: center; margin-bottom: 20px; }
+  #results-overlay button { margin: 5px; padding: 8px 12px; border-radius: 6px; border: none; background:#0bf; color:#fff; cursor:pointer; }
 
   @media (max-width: 600px) { .tile { font-size: 11px; padding: 4px 2px; } }
   @media (max-width: 400px) { .tile { font-size: 10px; padding: 3px 2px; } }
@@ -92,18 +76,16 @@
   {% set remaining = max_guesses - guesses|length %}
   {% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
   {% if target.poster %}
-    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" />
+    <div id="poster-img" class="poster" style="background-image:url('https://image.tmdb.org/t/p/w300{{ target.poster }}'); filter: blur({{ 0 if winner else blur_level }}px);"></div>
   {% else %}
-    <div id="poster-img" class="poster" style="background:#222; height:450px;"></div>
+    <div id="poster-img" class="poster" style="background:#222;"></div>
   {% endif %}
-</div>
-
-<!-- Results overlay -->
-<div id="results-overlay" class="results-overlay" style="display:none;">
-  <pre id="emoji-grid"></pre>
-  <button id="share-btn">Share Results</button>
-  <button id="watch-trailer-btn">Watch Trailer</button>
-  <div id="overlay-trailer-container" style="margin-top:10px;"></div>
+  <div id="results-overlay">
+    <pre id="emoji-grid"></pre>
+    <button id="share-btn">Share Results</button>
+    <button id="watch-trailer-btn">Watch Trailer</button>
+  </div>
+  <div id="trailer-area"></div>
 </div>
 
 <script>
@@ -113,17 +95,16 @@ const form = document.getElementById('guess-form');
 const guessGrid = document.getElementById('guess-grid');
 const posterImg = document.getElementById('poster-img');
 const messageDiv = document.getElementById('message');
-
 const resultsOverlay = document.getElementById('results-overlay');
 const emojiGridEl = document.getElementById('emoji-grid');
 const shareBtn = document.getElementById('share-btn');
 const watchTrailerBtn = document.getElementById('watch-trailer-btn');
-const overlayTrailerContainer = document.getElementById('overlay-trailer-container');
+const trailerArea = document.getElementById('trailer-area');
 
 let debounceTimer = null;
 let lastQuery = "";
 
-// Render guess grid
+// render guess grid
 function renderGuesses(guesses) {
   if (!Array.isArray(guesses) || guesses.length === 0) { guessGrid.innerHTML = ""; return; }
   let html = "";
@@ -138,37 +119,36 @@ function renderGuesses(guesses) {
   guessGrid.innerHTML = html;
 }
 
-// Build emoji grid
+// build emoji grid
 function buildEmojiGrid(guesses) {
   let grid = '';
   guesses.forEach(g => {
     const c = g.compare || {};
     const row = [
-      c.network?.color === 'green' ? '📺' : '⬛',
-      c.first_air_year?.color === 'green' ? '📺' : '⬛',
-      c.genre?.color === 'green' ? '📺' : '⬛',
-      c.number_of_seasons?.color === 'green' ? '📺' : '⬛',
-      c.status?.color === 'green' ? '📺' : '⬛'
+      c.network?.color === 'green' ? '📺' : (c.network?.color === 'yellow' ? '🟡' : '⬛'),
+      c.first_air_year?.color === 'green' ? '📺' : (c.first_air_year?.color === 'yellow' ? '🟡' : '⬛'),
+      c.genre?.color === 'green' ? '📺' : (c.genre?.color === 'yellow' ? '🟡' : '⬛'),
+      c.number_of_seasons?.color === 'green' ? '📺' : (c.number_of_seasons?.color === 'yellow' ? '🟡' : '⬛'),
+      c.status?.color === 'green' ? '📺' : (c.status?.color === 'yellow' ? '🟡' : '⬛')
     ];
     grid += row.join('') + '\n';
   });
   return grid;
 }
 
-// Show results overlay
+// show results overlay
 function showResultsOverlay(guesses, trailer) {
   emojiGridEl.textContent = buildEmojiGrid(guesses);
-  resultsOverlay.style.display = 'block';
-
+  resultsOverlay.style.display = 'flex';
   shareBtn.onclick = () => {
-    const textToShare = `${buildEmojiGrid(guesses)}\nPlay here: https://showtime-production-4f0b.up.railway.app/`;
-    navigator.clipboard.writeText(textToShare);
-    alert("Results copied to clipboard!");
+    const text = buildEmojiGrid(guesses) + "\nPlay here: https://showtime-production-4f0b.up.railway.app/";
+    navigator.clipboard.writeText(text);
+    alert("Results copied!");
   };
-
   watchTrailerBtn.onclick = () => {
     if(trailer) {
-      overlayTrailerContainer.innerHTML = `<iframe src="${trailer}" frameborder="0" allowfullscreen style="width:100%; height:300px; border-radius:8px;"></iframe>`;
+      trailerArea.innerHTML = `<iframe src="${trailer}" frameborder="0" allowfullscreen style="width:100%; height:300px; border-radius:8px;"></iframe>`;
+      window.scrollTo({ top: trailerArea.offsetTop - 20, behavior: 'smooth' });
     }
   };
 }
@@ -190,7 +170,11 @@ guessInput.addEventListener('input', (e) => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.textContent = `${item.name} (${item.year})`;
-        div.addEventListener('click', () => { guessInput.value = item.name; autocompleteResults.innerHTML = ""; autocompleteResults.style.display = 'none'; });
+        div.addEventListener('click', () => {
+          guessInput.value = item.name;
+          autocompleteResults.innerHTML = "";
+          autocompleteResults.style.display = 'none';
+        });
         autocompleteResults.appendChild(div);
       });
       autocompleteResults.style.display = 'block';
@@ -214,10 +198,8 @@ form.addEventListener('submit', async (e) => {
 
     renderGuesses(data.guesses || []);
 
-    // Update poster blur (less reduction per guess)
-    if (posterImg) {
-      posterImg.style.filter = `blur(${data.blur_level}px)`;
-    }
+    // Update poster blur (less aggressive per guess)
+    if (posterImg) posterImg.style.filter = `blur(${data.blur_level}px)`;
 
     if (data.game_over && data.target) {
       showResultsOverlay(data.guesses, data.target.trailer);
