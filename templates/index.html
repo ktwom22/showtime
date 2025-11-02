@@ -76,7 +76,7 @@
   {% set remaining = max_guesses - guesses|length %}
   {% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
   {% if target.poster %}
-    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" />
+    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" data-blur="{{ 0 if winner else blur_level }}" />
   {% else %}
     <div id="poster-img" class="poster" style="background:#222; height:450px;"></div>
   {% endif %}
@@ -112,7 +112,7 @@ const watchTrailerBtn = document.getElementById('watch-trailer-btn');
 let debounceTimer = null;
 let lastQuery = "";
 
-// render guess grid
+// Render guess grid
 function renderGuesses(guesses) {
   if (!Array.isArray(guesses) || guesses.length === 0) { guessGrid.innerHTML = ""; return; }
   let html = "";
@@ -127,7 +127,7 @@ function renderGuesses(guesses) {
   guessGrid.innerHTML = html;
 }
 
-// build emoji grid
+// Build emoji grid
 function buildEmojiGrid(guesses) {
   let grid = '';
   guesses.forEach(g => {
@@ -191,13 +191,21 @@ form.addEventListener('submit', async (e) => {
     const res = await fetch('/guess', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.status !== 200) { messageDiv.textContent = data.error || "Error submitting guess"; return; }
+
     renderGuesses(data.guesses || []);
+
+    // Update blur using CSS filter
     const blur = data.blur_level !== undefined ? data.blur_level : 0;
-    if (posterImg) posterImg.style.filter = `blur(${blur}px)`;
+    if (posterImg) {
+      posterImg.style.filter = `blur(${blur}px)`;
+      posterImg.dataset.blur = blur;
+    }
+
     if (data.game_over && data.target && data.target.trailer) {
       trailerArea.innerHTML = `<iframe id="trailer" src="${data.target.trailer}" frameborder="0" allowfullscreen></iframe>`;
       showResultsPanel(data.guesses, data.target.trailer);
     }
+
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
     guessInput.value = "";
     autocompleteResults.innerHTML = "";
