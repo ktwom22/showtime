@@ -9,7 +9,14 @@
   h1 { margin-bottom: 10px; }
 
   .autocomplete-container { position: relative; display: inline-block; margin-bottom: 10px; width: 90%; max-width: 320px; }
-  input { padding: 8px; border-radius: 5px; width: 100%; border: none; box-sizing: border-box; }
+  input {
+    padding: 8px;
+    border-radius: 5px;
+    width: 100%;
+    border: none;
+    box-sizing: border-box;
+    font-size: 16px; /* prevents mobile zoom */
+  }
   button { padding: 8px 12px; border-radius: 5px; cursor: pointer; border: none; background: #0bf; color: #fff; margin-top: 6px; width: 100%; }
 
   #autocomplete-results { background: #222; border: 1px solid #555; border-radius: 6px; position: absolute; top: 40px; left: 0; right: 0; z-index: 1000; color: white; overflow-y: auto; max-height: 240px; display: none; }
@@ -161,8 +168,7 @@ function showResultsOverlay(guesses, trailer) {
 
   watchTrailerBtn.onclick = () => {
     if(trailer) {
-      overlayTrailerContainer.innerHTML = `<iframe src="${trailer}" width="100%" height="315" frameborder="0" allowfullscreen style="border-radius:12px;"></iframe>`;
-      overlayTrailerContainer.scrollIntoView({ behavior: 'smooth' });
+      overlayTrailerContainer.innerHTML = `<iframe src="${trailer}" frameborder="0" allowfullscreen style="width:100%; height:300px; border-radius:8px;"></iframe>`;
     }
   };
 }
@@ -184,11 +190,7 @@ guessInput.addEventListener('input', (e) => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.textContent = `${item.name} (${item.year})`;
-        div.addEventListener('click', () => {
-          guessInput.value = item.name;
-          autocompleteResults.innerHTML = "";
-          autocompleteResults.style.display = 'none';
-        });
+        div.addEventListener('click', () => { guessInput.value = item.name; autocompleteResults.innerHTML = ""; autocompleteResults.style.display = 'none'; });
         autocompleteResults.appendChild(div);
       });
       autocompleteResults.style.display = 'block';
@@ -212,9 +214,10 @@ form.addEventListener('submit', async (e) => {
 
     renderGuesses(data.guesses || []);
 
-    // Adjust blur gradually
-    const blur = data.blur_level !== undefined ? data.blur_level : 0;
-    if (posterImg) posterImg.style.filter = `blur(${blur}px)`;
+    // Update poster blur (less reduction per guess)
+    if (posterImg) {
+      posterImg.style.filter = `blur(${data.blur_level}px)`;
+    }
 
     if (data.game_over && data.target) {
       showResultsOverlay(data.guesses, data.target.trailer);
@@ -227,7 +230,7 @@ form.addEventListener('submit', async (e) => {
   } catch (err) { console.error(err); messageDiv.textContent = "Network or server error."; }
 });
 
-// Show results overlay on page load if game is already over
+// Show overlay if game already over on page load
 {% if game_over %}
 showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}");
 {% endif %}
