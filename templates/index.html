@@ -19,10 +19,7 @@
   .message { margin-top: 10px; color: #ddd; font-size: 14px; }
 
   .poster-container { position: relative; display: inline-block; margin: 20px auto; width: 90%; max-width: 300px; }
-  .poster { width: 100%; height: auto; border-radius: 12px; object-fit: cover; transition: filter 0.6s ease; display: block; }
-
-  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; opacity: 0; animation: fadeIn 1s forwards; }
-  @keyframes fadeIn { to { opacity: 1; } }
+  .poster { width: 100%; height: auto; border-radius: 12px; object-fit: cover; transition: filter 1.2s ease; display: block; }
 
   .guess-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 100%; margin: 10px auto; }
   .tile { padding: 6px 4px; border-radius: 6px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -30,9 +27,21 @@
 
   .grid-header .tile { background: #222; font-weight: bold; }
 
-  #results-panel { display: none; margin-top: 20px; border: 1px solid #555; padding: 10px; border-radius: 12px; max-width: 400px; margin-left: auto; margin-right: auto; }
-  #results-panel p { margin-bottom: 8px; font-weight: bold; }
-  #results-panel button { margin: 4px; width: 120px; }
+  /* Results overlay */
+  .results-overlay {
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 90%; max-width: 320px;
+    background: rgba(0,0,0,0.85);
+    padding: 16px;
+    border-radius: 12px;
+    z-index: 100;
+    text-align: center;
+  }
+
+  .results-overlay pre { text-align: center; font-size: 18px; margin: 10px 0; }
+
+  .results-overlay button { margin: 6px 0; width: 80%; }
 
   @media (max-width: 600px) { .tile { font-size: 11px; padding: 4px 2px; } }
   @media (max-width: 400px) { .tile { font-size: 10px; padding: 3px 2px; } }
@@ -76,23 +85,18 @@
   {% set remaining = max_guesses - guesses|length %}
   {% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
   {% if target.poster %}
-    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" data-blur="{{ 0 if winner else blur_level }}" />
+    <img id="poster-img" src="https://image.tmdb.org/t/p/w300{{ target.poster }}" class="poster" style="filter: blur({{ 0 if winner else blur_level }}px);" alt="poster" />
   {% else %}
     <div id="poster-img" class="poster" style="background:#222; height:450px;"></div>
   {% endif %}
-  <div id="trailer-area">
-    {% if game_over and target.trailer %}
-      <iframe id="trailer" src="{{ target.trailer }}" frameborder="0" allowfullscreen></iframe>
-    {% endif %}
-  </div>
 </div>
 
-<!-- Results panel -->
-<div id="results-panel">
-  <p>🎉 Game Over! Share your results or watch the trailer:</p>
-  <pre id="emoji-grid" style="text-align:center; font-size:18px;"></pre>
+<!-- Results overlay -->
+<div id="results-overlay" class="results-overlay" style="display:none;">
+  <pre id="emoji-grid"></pre>
   <button id="share-btn">Share Results</button>
   <button id="watch-trailer-btn">Watch Trailer</button>
+  <div id="overlay-trailer-container" style="margin-top:10px;"></div>
 </div>
 
 <script>
@@ -102,12 +106,12 @@ const form = document.getElementById('guess-form');
 const guessGrid = document.getElementById('guess-grid');
 const posterImg = document.getElementById('poster-img');
 const messageDiv = document.getElementById('message');
-const trailerArea = document.getElementById('trailer-area');
 
-const resultsPanel = document.getElementById('results-panel');
+const resultsOverlay = document.getElementById('results-overlay');
 const emojiGridEl = document.getElementById('emoji-grid');
 const shareBtn = document.getElementById('share-btn');
 const watchTrailerBtn = document.getElementById('watch-trailer-btn');
+const overlayTrailerContainer = document.getElementById('overlay-trailer-container');
 
 let debounceTimer = null;
 let lastQuery = "";
@@ -133,23 +137,33 @@ function buildEmojiGrid(guesses) {
   guesses.forEach(g => {
     const c = g.compare || {};
     const row = [
-      c.network?.color === 'green' ? '📺' : (c.network?.color === 'yellow' ? '🟡' : '⬛'),
-      c.first_air_year?.color === 'green' ? '📺' : (c.first_air_year?.color === 'yellow' ? '🟡' : '⬛'),
-      c.genre?.color === 'green' ? '📺' : (c.genre?.color === 'yellow' ? '🟡' : '⬛'),
-      c.number_of_seasons?.color === 'green' ? '📺' : (c.number_of_seasons?.color === 'yellow' ? '🟡' : '⬛'),
-      c.status?.color === 'green' ? '📺' : (c.status?.color === 'yellow' ? '🟡' : '⬛')
+      c.network?.color === 'green' ? '📺' : '⬛',
+      c.first_air_year?.color === 'green' ? '📺' : '⬛',
+      c.genre?.color === 'green' ? '📺' : '⬛',
+      c.number_of_seasons?.color === 'green' ? '📺' : '⬛',
+      c.status?.color === 'green' ? '📺' : '⬛'
     ];
     grid += row.join('') + '\n';
   });
   return grid;
 }
 
-function showResultsPanel(guesses, trailer) {
+// Show results overlay
+function showResultsOverlay(guesses, trailer) {
   emojiGridEl.textContent = buildEmojiGrid(guesses);
-  resultsPanel.style.display = 'block';
-  shareBtn.onclick = () => navigator.clipboard.writeText(buildEmojiGrid(guesses));
+  resultsOverlay.style.display = 'block';
+
+  shareBtn.onclick = () => {
+    const textToShare = `${buildEmojiGrid(guesses)}\nPlay here: https://showtime-production-4f0b.up.railway.app/`;
+    navigator.clipboard.writeText(textToShare);
+    alert("Results copied to clipboard!");
+  };
+
   watchTrailerBtn.onclick = () => {
-    if(trailer) window.open(trailer, '_blank');
+    if(trailer) {
+      overlayTrailerContainer.innerHTML = `<iframe src="${trailer}" width="100%" height="315" frameborder="0" allowfullscreen style="border-radius:12px;"></iframe>`;
+      overlayTrailerContainer.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 }
 
@@ -170,7 +184,11 @@ guessInput.addEventListener('input', (e) => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.textContent = `${item.name} (${item.year})`;
-        div.addEventListener('click', () => { guessInput.value = item.name; autocompleteResults.innerHTML = ""; autocompleteResults.style.display = 'none'; });
+        div.addEventListener('click', () => {
+          guessInput.value = item.name;
+          autocompleteResults.innerHTML = "";
+          autocompleteResults.style.display = 'none';
+        });
         autocompleteResults.appendChild(div);
       });
       autocompleteResults.style.display = 'block';
@@ -194,16 +212,12 @@ form.addEventListener('submit', async (e) => {
 
     renderGuesses(data.guesses || []);
 
-    // Update blur using CSS filter
+    // Adjust blur gradually
     const blur = data.blur_level !== undefined ? data.blur_level : 0;
-    if (posterImg) {
-      posterImg.style.filter = `blur(${blur}px)`;
-      posterImg.dataset.blur = blur;
-    }
+    if (posterImg) posterImg.style.filter = `blur(${blur}px)`;
 
-    if (data.game_over && data.target && data.target.trailer) {
-      trailerArea.innerHTML = `<iframe id="trailer" src="${data.target.trailer}" frameborder="0" allowfullscreen></iframe>`;
-      showResultsPanel(data.guesses, data.target.trailer);
+    if (data.game_over && data.target) {
+      showResultsOverlay(data.guesses, data.target.trailer);
     }
 
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
@@ -213,9 +227,9 @@ form.addEventListener('submit', async (e) => {
   } catch (err) { console.error(err); messageDiv.textContent = "Network or server error."; }
 });
 
-// Show results panel on page load if game is already over
+// Show results overlay on page load if game is already over
 {% if game_over %}
-showResultsPanel({{ guesses|tojson }}, "{{ target.trailer }}");
+showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}");
 {% endif %}
 </script>
 
