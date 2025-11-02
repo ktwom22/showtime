@@ -21,8 +21,7 @@
   .poster-container { position: relative; display: inline-block; margin: 20px auto; width: 90%; max-width: 300px; }
   .poster { width: 100%; height: 450px; border-radius: 12px; background-size: cover; background-position: center; transition: filter 1s ease; }
 
-  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; opacity: 0; animation: fadeIn 1s forwards; }
-  @keyframes fadeIn { to { opacity: 1; } }
+  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; }
 
   .guess-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 100%; margin: 10px auto; }
   .tile { padding: 6px 4px; border-radius: 6px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -31,7 +30,7 @@
   .grid-header .tile { background: #222; font-weight: bold; }
 
   #results-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); color: #fff; border-radius:12px; display:flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; padding: 10px; box-sizing: border-box; }
-  #results-overlay pre { font-size: 18px; text-align: center; margin-bottom: 20px; }
+  #results-overlay pre { font-size: 18px; text-align: center; margin-bottom: 20px; white-space: pre-wrap; }
   #results-overlay button { margin: 5px; padding: 8px 12px; border-radius: 6px; border: none; background:#0bf; color:#fff; cursor:pointer; }
 
   @media (max-width: 600px) { .tile { font-size: 11px; padding: 4px 2px; } }
@@ -80,11 +79,14 @@
   {% else %}
     <div id="poster-img" class="poster" style="background:#222;"></div>
   {% endif %}
+
+  <!-- overlay only shows when game is over -->
   <div id="results-overlay">
     <pre id="emoji-grid"></pre>
     <button id="share-btn">Share Results</button>
     <button id="watch-trailer-btn">Watch Trailer</button>
   </div>
+
   <div id="trailer-area"></div>
 </div>
 
@@ -136,7 +138,7 @@ function buildEmojiGrid(guesses) {
   return grid;
 }
 
-// show results overlay
+// show overlay (game over)
 function showResultsOverlay(guesses, trailer) {
   emojiGridEl.textContent = buildEmojiGrid(guesses);
   resultsOverlay.style.display = 'flex';
@@ -198,9 +200,10 @@ form.addEventListener('submit', async (e) => {
 
     renderGuesses(data.guesses || []);
 
-    // Update poster blur (less aggressive per guess)
+    // poster blur updates after each guess
     if (posterImg) posterImg.style.filter = `blur(${data.blur_level}px)`;
 
+    // only show overlay if game over
     if (data.game_over && data.target) {
       showResultsOverlay(data.guesses, data.target.trailer);
     }
@@ -212,7 +215,7 @@ form.addEventListener('submit', async (e) => {
   } catch (err) { console.error(err); messageDiv.textContent = "Network or server error."; }
 });
 
-// Show overlay if game already over on page load
+// show overlay if game already over
 {% if game_over %}
 showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}");
 {% endif %}
