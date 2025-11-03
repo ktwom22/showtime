@@ -10,6 +10,34 @@
 
   gtag('config', 'G-Y8KB3CP32F');
 </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Quiz",
+  "name": "Guess the TV Show",
+  "description": "Test your knowledge of popular TV series with our interactive guessing game. Play quizzes on trending shows in 2025.",
+  "about": [
+    {
+      "@type": "TVSeries",
+      "name": "Stranger Things"
+    },
+    {
+      "@type": "TVSeries",
+      "name": "The Crown"
+    },
+    {
+      "@type": "TVSeries",
+      "name": "The Witcher"
+    }
+  ],
+  "educationalUse": "Entertainment",
+  "audience": {
+    "@type": "Audience",
+    "audienceType": "TV show fans"
+  }
+}
+</script>
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Guess the TV Show</title>
@@ -102,13 +130,14 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    z-index: 10;
+    z-index: 20;
     padding: 10px;
     box-sizing: border-box;
   }
   #results-overlay button {
     margin: 6px;
     width: 140px;
+    z-index: 25;
   }
   #like-dislike {
     margin-top: 10px;
@@ -141,11 +170,15 @@
     .tile { font-size: 10px; padding: 3px 2px; }
   }
 
-  /* Hidden SEO text */
   .seo-text { position:absolute; left:-9999px; top:-9999px; }
 </style>
 </head>
 <body>
+
+<div style="display:none;">
+  Play the ultimate TV show guessing game online and test your knowledge of popular TV series in 2025...
+  <!-- Full SEO text here -->
+</div>
 
 <h1>🎬 Guess the TV Show</h1>
 
@@ -208,119 +241,59 @@ const watchTrailerBtn = document.getElementById('watch-trailer-btn');
 const likeDislikeDiv = document.getElementById('like-dislike');
 
 let debounceTimer = null;
-let lastQuery = "";
-
-// Store client-side blur tracking
 const MAX_GUESSES = {{ max_guesses }};
 let currentGuessCount = {{ guesses|length }};
 
-// render guesses
-function renderGuesses(guesses) {
-  if (!Array.isArray(guesses) || guesses.length === 0) {
-    guessGrid.innerHTML = "";
+// ---------- AUTOCOMPLETE ----------
+guessInput.addEventListener('input', e => {
+  const query = e.target.value.trim();
+  if (!query) {
+    autocompleteResults.innerHTML = '';
+    autocompleteResults.style.display = 'none';
     return;
   }
-  let html = "";
-  guesses.forEach(g => {
-    const c = g.compare || {};
-    html += `<div class="tile" style="background:${c.network?.color || '#555'}">${g.guess.network}</div>`;
-    html += `<div class="tile" style="background:${c.first_air_year?.color || '#555'}">${g.guess.first_air_year} ${c.first_air_year?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${c.genre?.color || '#555'}">${g.guess.genre}</div>`;
-    html += `<div class="tile" style="background:${c.number_of_seasons?.color || '#555'}">${g.guess.number_of_seasons} ${c.number_of_seasons?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${c.status?.color || '#555'}">${g.guess.status}</div>`;
-  });
-  guessGrid.innerHTML = html;
-}
 
-// build emoji grid
-function buildEmojiGrid(guesses) {
-  let grid = '';
-  guesses.forEach(g => {
-    const c = g.compare || {};
-    const row = [
-      c.network?.color === 'green' ? '📺' : (c.network?.color === 'yellow' ? '🟡' : '⬛'),
-      c.first_air_year?.color === 'green' ? '📺' : (c.first_air_year?.color === 'yellow' ? '🟡' : '⬛'),
-      c.genre?.color === 'green' ? '📺' : (c.genre?.color === 'yellow' ? '🟡' : '⬛'),
-      c.number_of_seasons?.color === 'green' ? '📺' : (c.number_of_seasons?.color === 'yellow' ? '🟡' : '⬛'),
-      c.status?.color === 'green' ? '📺' : (c.status?.color === 'yellow' ? '🟡' : '⬛')
-    ];
-    grid += row.join('') + '\n';
-  });
-  return grid;
-}
-
-// show overlay
-function showResultsOverlay(guesses, trailer, likes=75, dislikes=25) {
-  emojiGridEl.textContent = buildEmojiGrid(guesses);
-  likeDislikeDiv.innerHTML = `👍 ${likes}% &nbsp; 👎 ${dislikes}%`;
-  resultsOverlay.style.display = 'flex';
-
-  shareBtn.onclick = () => {
-    const text = buildEmojiGrid(guesses) + "\nPlay here: https://showtime-production-4f0b.up.railway.app/";
-    navigator.clipboard.writeText(text);
-    alert("Results copied!");
-  };
-
-  watchTrailerBtn.onclick = () => {
-    if(trailer) {
-      let existingIframe = document.getElementById('trailer-iframe');
-      if(!existingIframe){
-        const iframe = document.createElement('iframe');
-        iframe.id = 'trailer-iframe';
-        iframe.src = trailer;
-        iframe.frameBorder = "0";
-        iframe.allowFullscreen = true;
-        iframe.style.width = "100%";
-        iframe.style.height = "300px";
-        iframe.style.borderRadius = "8px";
-        iframe.style.zIndex = "20";
-        iframe.style.position = "relative";
-        iframe.style.marginTop = "10px";
-        resultsOverlay.appendChild(iframe);
-      }
-      document.getElementById('trailer-iframe').scrollIntoView({behavior: "smooth"});
-    }
-  };
-}
-
-// Autocomplete
-guessInput.addEventListener('input', (e) => {
-  const q = e.target.value.trim();
-  if (!q) { autocompleteResults.style.display = 'none'; autocompleteResults.innerHTML = ''; return; }
-  if (q === lastQuery) return;
-  lastQuery = q;
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`/autocomplete?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/autocomplete?q=${encodeURIComponent(query)}`);
       const data = await res.json();
-      autocompleteResults.innerHTML = "";
-      if (!data.results || data.results.length === 0) { autocompleteResults.style.display = 'none'; return; }
+      autocompleteResults.innerHTML = '';
+      if (!data.results || data.results.length === 0) {
+        autocompleteResults.style.display = 'none';
+        return;
+      }
+
       data.results.forEach(item => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.textContent = `${item.name} (${item.year})`;
-        div.addEventListener('click', () => {
+        div.onclick = () => {
           guessInput.value = item.name;
-          autocompleteResults.innerHTML = "";
+          autocompleteResults.innerHTML = '';
           autocompleteResults.style.display = 'none';
-        });
+        };
         autocompleteResults.appendChild(div);
       });
       autocompleteResults.style.display = 'block';
-    } catch (err) { console.error('Autocomplete error', err); autocompleteResults.style.display = 'none'; }
+    } catch (err) {
+      console.error(err);
+      autocompleteResults.style.display = 'none';
+    }
   }, 250);
 });
-document.addEventListener('click', (e) => {
+
+document.addEventListener('click', e => {
   if (!autocompleteResults.contains(e.target) && e.target !== guessInput)
     autocompleteResults.style.display = 'none';
 });
 
-// Submit guess
-form.addEventListener('submit', async (e) => {
+// ---------- GUESS SUBMIT ----------
+form.addEventListener('submit', async e => {
   e.preventDefault();
   const guess = guessInput.value.trim();
   if (!guess) return;
+
   messageDiv.textContent = "Submitting guess...";
   try {
     const formData = new FormData();
@@ -331,24 +304,92 @@ form.addEventListener('submit', async (e) => {
       messageDiv.textContent = data.error || "Error submitting guess";
       return;
     }
+
     renderGuesses(data.guesses || []);
     currentGuessCount++;
-    let remaining = Math.max(0, MAX_GUESSES - currentGuessCount);
-    let blur = Math.ceil((40 * Math.pow(remaining, 2.5)) / Math.pow(MAX_GUESSES, 2.5));
+    const remaining = Math.max(0, MAX_GUESSES - currentGuessCount);
+    const blur = Math.ceil((40 * Math.pow(remaining, 2.5)) / Math.pow(MAX_GUESSES, 2.5));
     posterImg.style.filter = `blur(${blur}px)`;
-    if (data.game_over && data.target) showResultsOverlay(data.guesses, data.target.trailer, data.target.like_percent, data.target.dislike_percent);
+
+    if (data.game_over && data.target)
+      showResultsOverlay(data.guesses, data.target.trailer, data.target.like_percent, data.target.dislike_percent);
+
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
-    guessInput.value = "";
-    autocompleteResults.innerHTML = "";
-    autocompleteResults.style.display = "none";
-  } catch (err) {
+    guessInput.value = '';
+    autocompleteResults.innerHTML = '';
+    autocompleteResults.style.display='none';
+  } catch(err) {
     console.error(err);
     messageDiv.textContent = "Network or server error.";
   }
 });
 
+// ---------- RENDER FUNCTIONS ----------
+function renderGuesses(guesses){
+  if(!Array.isArray(guesses)||guesses.length===0){ guessGrid.innerHTML=''; return; }
+  let html='';
+  guesses.forEach(g=>{
+    const c=g.compare||{};
+    html+=`<div class="tile" style="background:${c.network?.color||'#555'}">${g.guess.network}</div>`;
+    html+=`<div class="tile" style="background:${c.first_air_year?.color||'#555'}">${g.guess.first_air_year} ${c.first_air_year?.arrow||''}</div>`;
+    html+=`<div class="tile" style="background:${c.genre?.color||'#555'}">${g.guess.genre}</div>`;
+    html+=`<div class="tile" style="background:${c.number_of_seasons?.color||'#555'}">${g.guess.number_of_seasons} ${c.number_of_seasons?.arrow||''}</div>`;
+    html+=`<div class="tile" style="background:${c.status?.color||'#555'}">${g.guess.status}</div>`;
+  });
+  guessGrid.innerHTML=html;
+}
+
+function buildEmojiGrid(guesses){
+  let grid='';
+  guesses.forEach(g=>{
+    const c=g.compare||{};
+    const row=[
+      c.network?.color==='green'?'📺':(c.network?.color==='yellow'?'🟡':'⬛'),
+      c.first_air_year?.color==='green'?'📺':(c.first_air_year?.color==='yellow'?'🟡':'⬛'),
+      c.genre?.color==='green'?'📺':(c.genre?.color==='yellow'?'🟡':'⬛'),
+      c.number_of_seasons?.color==='green'?'📺':(c.number_of_seasons?.color==='yellow'?'🟡':'⬛'),
+      c.status?.color==='green'?'📺':(c.status?.color==='yellow'?'🟡':'⬛')
+    ];
+    grid+=row.join('')+'\n';
+  });
+  return grid;
+}
+
+function showResultsOverlay(guesses, trailer, likes=75, dislikes=25){
+  emojiGridEl.textContent=buildEmojiGrid(guesses);
+  likeDislikeDiv.innerHTML=`👍 ${likes}% &nbsp; 👎 ${dislikes}%`;
+  resultsOverlay.style.display='flex';
+
+  shareBtn.onclick=()=>{
+    navigator.clipboard.writeText(buildEmojiGrid(guesses)+"\nPlay here: https://showtime-production-4f0b.up.railway.app/");
+    alert("Results copied!");
+  };
+
+  watchTrailerBtn.onclick=()=>{
+    if(trailer){
+      let iframe=document.getElementById('trailer-iframe');
+      if(!iframe){
+        iframe=document.createElement('iframe');
+        iframe.id='trailer-iframe';
+        iframe.src=trailer;
+        iframe.frameBorder="0";
+        iframe.allowFullscreen=true;
+        iframe.style.width="100%";
+        iframe.style.height="300px";
+        iframe.style.borderRadius="8px";
+        iframe.style.zIndex="25";
+        iframe.style.position="relative";
+        iframe.style.marginTop="10px";
+        resultsOverlay.appendChild(iframe);
+      }
+      iframe.scrollIntoView({behavior:"smooth"});
+    }
+  };
+}
+
+// ---------- INIT GAME OVER ----------
 {% if game_over %}
-showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}", {{ target.like_percent }}, {{ target.dislike_percent }});
+showResultsOverlay({{ guesses|tojson }},"{{ target.trailer }}",{{ target.like_percent }},{{ target.dislike_percent }});
 {% endif %}
 </script>
 
