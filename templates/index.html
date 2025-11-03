@@ -5,36 +5,145 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Guess the TV Show</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+  }
   h1 { margin-bottom: 10px; }
 
-  .autocomplete-container { position: relative; display: inline-block; margin-bottom: 10px; width: 90%; max-width: 320px; }
-  input { padding: 8px; border-radius: 5px; width: 100%; border: none; box-sizing: border-box; font-size:16px; }
-  button { padding: 8px 12px; border-radius: 5px; cursor: pointer; border: none; background: #0bf; color: #fff; margin-top: 6px; width: 100%; }
-
-  #autocomplete-results { background: #222; border: 1px solid #555; border-radius: 6px; position: absolute; top: 40px; left: 0; right: 0; z-index: 1000; color: white; overflow-y: auto; max-height: 240px; display: none; }
-  .autocomplete-item { padding: 8px 10px; cursor: pointer; }
+  .autocomplete-container {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 10px;
+    width: 90%;
+    max-width: 320px;
+  }
+  input {
+    padding: 8px;
+    border-radius: 5px;
+    width: 100%;
+    border: none;
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+  button {
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    background: #0bf;
+    color: #fff;
+    margin-top: 6px;
+    width: 100%;
+  }
+  #autocomplete-results {
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 6px;
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    color: white;
+    overflow-y: auto;
+    max-height: 240px;
+    display: none;
+  }
+  .autocomplete-item {
+    padding: 8px 10px;
+    cursor: pointer;
+  }
   .autocomplete-item:hover { background: #333; }
 
   .message { margin-top: 10px; color: #ddd; font-size: 14px; }
 
-  .poster-container { position: relative; display: inline-block; margin: 20px auto; width: 90%; max-width: 300px; }
-  .poster { width: 100%; height: 450px; border-radius: 12px; background-size: cover; background-position: center; transition: filter 1s ease; }
+  .poster-container {
+    position: relative;
+    display: inline-block;
+    margin: 20px auto;
+    width: 90%;
+    max-width: 300px;
+  }
+  .poster {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    object-fit: cover;
+    transition: filter 1.2s ease;
+    display: block;
+    user-select: none;
+    pointer-events: none;
+    background-size: cover;
+    background-position: center;
+    aspect-ratio: 2/3;
+  }
+  #results-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    border-radius: 12px;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  #results-overlay button {
+    margin: 6px;
+    width: 140px;
+  }
+  #like-dislike {
+    margin: 10px 0;
+    font-size: 16px;
+  }
+  #trailer-area iframe {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    aspect-ratio: 16/9;
+    border-radius: 12px;
+    margin-top: 10px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    opacity: 0;
+    animation: fadeIn 1s forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
 
-  #trailer-area iframe { width: 100%; max-width: 600px; height: auto; aspect-ratio: 16/9; border-radius: 12px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto; }
-
-  .guess-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 100%; margin: 10px auto; }
-  .tile { padding: 6px 4px; border-radius: 6px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .green { background: #4CAF50; } .gray { background: #555; }
-
+  .guess-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    max-width: 100%;
+    margin: 10px auto;
+  }
+  .tile {
+    padding: 6px 4px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .grid-header .tile { background: #222; font-weight: bold; }
 
-  #results-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); color: #fff; border-radius:12px; display:flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; padding: 10px; box-sizing: border-box; }
-  #results-overlay pre { font-size: 18px; text-align: center; margin-bottom: 20px; white-space: pre-wrap; }
-  #results-overlay button { margin: 5px; padding: 8px 12px; border-radius: 6px; border: none; background:#0bf; color:#fff; cursor:pointer; }
-
-  @media (max-width: 600px) { .tile { font-size: 11px; padding: 4px 2px; } }
-  @media (max-width: 400px) { .tile { font-size: 10px; padding: 3px 2px; } }
+  @media (max-width: 600px) {
+    .tile { font-size: 11px; padding: 4px 2px; }
+    input, button { font-size: 16px; }
+  }
+  @media (max-width: 400px) {
+    .tile { font-size: 10px; padding: 3px 2px; }
+  }
 </style>
 </head>
 <body>
@@ -59,30 +168,23 @@
   <div class="tile">Status</div>
 </div>
 
-<div id="guess-grid" class="guess-grid">
-  {% if guesses %}
-    {% for g in guesses %}
-      <div class="tile" style="background:{{ g.compare.network.color }}">{{ g.guess.network }}</div>
-      <div class="tile" style="background:{{ g.compare.first_air_year.color }}">{{ g.guess.first_air_year }} {{ g.compare.first_air_year.arrow }}</div>
-      <div class="tile" style="background:{{ g.compare.genre.color }}">{{ g.guess.genre }}</div>
-      <div class="tile" style="background:{{ g.compare.number_of_seasons.color }}">{{ g.guess.number_of_seasons }} {{ g.compare.number_of_seasons.arrow }}</div>
-      <div class="tile" style="background:{{ g.compare.status.color }}">{{ g.guess.status }}</div>
-    {% endfor %}
-  {% endif %}
-</div>
+<div id="guess-grid" class="guess-grid"></div>
 
 <div class="poster-container">
   {% set remaining = max_guesses - guesses|length %}
-  {% set blur_level = (20 * remaining**2) // (max_guesses**2) %}
+  {% set blur_level = (80 * remaining**1) // (max_guesses**1) %}
   {% if target.poster %}
-    <div id="poster-img" class="poster" style="background-image:url('https://image.tmdb.org/t/p/w300{{ target.poster }}'); filter: blur({{ 0 if winner else blur_level }}px);"></div>
+    <div id="poster-img"
+      class="poster"
+      style="background-image:url('https://image.tmdb.org/t/p/w300{{ target.poster }}'); filter: blur({{ blur_level }}px);">
+    </div>
   {% else %}
-    <div id="poster-img" class="poster" style="background:#222;"></div>
+    <div id="poster-img" class="poster" style="background:#222; height:450px;"></div>
   {% endif %}
 
-  <!-- overlay only shows when game is over -->
   <div id="results-overlay">
-    <pre id="emoji-grid"></pre>
+    <pre id="emoji-grid" style="text-align:center; font-size:18px;"></pre>
+    <div id="like-dislike"></div>
     <button id="share-btn">Share Results</button>
     <button id="watch-trailer-btn">Watch Trailer</button>
   </div>
@@ -97,26 +199,35 @@ const form = document.getElementById('guess-form');
 const guessGrid = document.getElementById('guess-grid');
 const posterImg = document.getElementById('poster-img');
 const messageDiv = document.getElementById('message');
+const trailerArea = document.getElementById('trailer-area');
 const resultsOverlay = document.getElementById('results-overlay');
 const emojiGridEl = document.getElementById('emoji-grid');
 const shareBtn = document.getElementById('share-btn');
 const watchTrailerBtn = document.getElementById('watch-trailer-btn');
-const trailerArea = document.getElementById('trailer-area');
+const likeDislikeDiv = document.getElementById('like-dislike');
 
 let debounceTimer = null;
 let lastQuery = "";
 
-// render guess grid
+// Store client-side blur tracking
+const MAX_GUESSES = {{ max_guesses }};
+let currentGuessCount = {{ guesses|length }};
+let baseBlur = 25; // starting blur strength
+
+// render guesses
 function renderGuesses(guesses) {
-  if (!Array.isArray(guesses) || guesses.length === 0) { guessGrid.innerHTML = ""; return; }
+  if (!Array.isArray(guesses) || guesses.length === 0) {
+    guessGrid.innerHTML = "";
+    return;
+  }
   let html = "";
   guesses.forEach(g => {
-    const comp = g.compare || {};
-    html += `<div class="tile" style="background:${comp.network?.color || 'gray'}">${g.guess.network}</div>`;
-    html += `<div class="tile" style="background:${comp.first_air_year?.color || 'gray'}">${g.guess.first_air_year} ${comp.first_air_year?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${comp.genre?.color || 'gray'}">${g.guess.genre}</div>`;
-    html += `<div class="tile" style="background:${comp.number_of_seasons?.color || 'gray'}">${g.guess.number_of_seasons} ${comp.number_of_seasons?.arrow || ''}</div>`;
-    html += `<div class="tile" style="background:${comp.status?.color || 'gray'}">${g.guess.status}</div>`;
+    const c = g.compare || {};
+    html += `<div class="tile" style="background:${c.network?.color || '#555'}">${g.guess.network}</div>`;
+    html += `<div class="tile" style="background:${c.first_air_year?.color || '#555'}">${g.guess.first_air_year} ${c.first_air_year?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${c.genre?.color || '#555'}">${g.guess.genre}</div>`;
+    html += `<div class="tile" style="background:${c.number_of_seasons?.color || '#555'}">${g.guess.number_of_seasons} ${c.number_of_seasons?.arrow || ''}</div>`;
+    html += `<div class="tile" style="background:${c.status?.color || '#555'}">${g.guess.status}</div>`;
   });
   guessGrid.innerHTML = html;
 }
@@ -138,17 +249,30 @@ function buildEmojiGrid(guesses) {
   return grid;
 }
 
-// show overlay (game over)
-function showResultsOverlay(guesses, trailer) {
+// show overlay
+function showResultsOverlay(guesses, trailer, likes = 0, dislikes = 0) {
   emojiGridEl.textContent = buildEmojiGrid(guesses);
   resultsOverlay.style.display = 'flex';
+
+  // Show likes/dislikes
+  const totalVotes = likes + dislikes;
+  if (totalVotes > 0) {
+    const likePct = Math.round((likes / totalVotes) * 100);
+    const dislikePct = 100 - likePct;
+    likeDislikeDiv.innerHTML = `👍 ${likePct}% | 👎 ${dislikePct}%`;
+  } else {
+    likeDislikeDiv.innerHTML = '';
+  }
+
   shareBtn.onclick = () => {
     const text = buildEmojiGrid(guesses) + "\nPlay here: https://showtime-production-4f0b.up.railway.app/";
     navigator.clipboard.writeText(text);
     alert("Results copied!");
   };
+
   watchTrailerBtn.onclick = () => {
     if(trailer) {
+      resultsOverlay.style.display = 'none';
       trailerArea.innerHTML = `<iframe src="${trailer}" frameborder="0" allowfullscreen style="width:100%; height:300px; border-radius:8px;"></iframe>`;
       window.scrollTo({ top: trailerArea.offsetTop - 20, behavior: 'smooth' });
     }
@@ -183,7 +307,10 @@ guessInput.addEventListener('input', (e) => {
     } catch (err) { console.error('Autocomplete error', err); autocompleteResults.style.display = 'none'; }
   }, 250);
 });
-document.addEventListener('click', (e) => { if (!autocompleteResults.contains(e.target) && e.target !== guessInput) autocompleteResults.style.display = 'none'; });
+document.addEventListener('click', (e) => {
+  if (!autocompleteResults.contains(e.target) && e.target !== guessInput)
+    autocompleteResults.style.display = 'none';
+});
 
 // Submit guess
 form.addEventListener('submit', async (e) => {
@@ -196,28 +323,31 @@ form.addEventListener('submit', async (e) => {
     formData.append('guess', guess);
     const res = await fetch('/guess', { method: 'POST', body: formData });
     const data = await res.json();
-    if (res.status !== 200) { messageDiv.textContent = data.error || "Error submitting guess"; return; }
-
-    renderGuesses(data.guesses || []);
-
-    // poster blur updates after each guess
-    if (posterImg) posterImg.style.filter = `blur(${data.blur_level}px)`;
-
-    // only show overlay if game over
-    if (data.game_over && data.target) {
-      showResultsOverlay(data.guesses, data.target.trailer);
+    if (res.status !== 200) {
+      messageDiv.textContent = data.error || "Error submitting guess";
+      return;
     }
-
+    renderGuesses(data.guesses || []);
+    currentGuessCount++;
+    let remaining = Math.max(0, MAX_GUESSES - currentGuessCount);
+    // slower blur fade
+    let blur = Math.ceil((35 * Math.pow(remaining, 3)) / Math.pow(MAX_GUESSES, 3));
+    posterImg.style.filter = `blur(${blur}px)`;
+    if (data.game_over && data.target) {
+      showResultsOverlay(data.guesses, data.target.trailer, data.target.likes, data.target.dislikes);
+    }
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
     guessInput.value = "";
     autocompleteResults.innerHTML = "";
     autocompleteResults.style.display = "none";
-  } catch (err) { console.error(err); messageDiv.textContent = "Network or server error."; }
+  } catch (err) {
+    console.error(err);
+    messageDiv.textContent = "Network or server error.";
+  }
 });
 
-// show overlay if game already over
 {% if game_over %}
-showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}");
+showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}", {{ target.likes }}, {{ target.dislikes }});
 {% endif %}
 </script>
 
