@@ -74,7 +74,7 @@
     height: auto;
     border-radius: 12px;
     object-fit: cover;
-    transition: filter 1.2s ease;
+    transition: filter 0.8s ease;
     display: block;
     user-select: none;
     pointer-events: none;
@@ -82,6 +82,7 @@
     background-position: center;
     aspect-ratio: 2/3;
   }
+
   #results-overlay {
     display: none;
     position: absolute;
@@ -101,23 +102,9 @@
     width: 140px;
   }
   #like-dislike {
-    margin: 10px 0;
+    margin-top: 10px;
     font-size: 16px;
   }
-  #trailer-area iframe {
-    width: 100%;
-    max-width: 600px;
-    height: auto;
-    aspect-ratio: 16/9;
-    border-radius: 12px;
-    margin-top: 10px;
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-    opacity: 0;
-    animation: fadeIn 1s forwards;
-  }
-  @keyframes fadeIn { to { opacity: 1; } }
 
   .guess-grid {
     display: grid;
@@ -144,11 +131,19 @@
   @media (max-width: 400px) {
     .tile { font-size: 10px; padding: 3px 2px; }
   }
+
+  /* Hidden SEO text */
+  .seo-text { position:absolute; left:-9999px; top:-9999px; }
 </style>
 </head>
 <body>
 
 <h1>🎬 Guess the TV Show</h1>
+
+<div class="seo-text">
+  Test your knowledge of popular TV shows in 2025!
+  Wondering what to watch tonight? Play our quiz to discover trending series.
+</div>
 
 <div class="autocomplete-container">
   <form id="guess-form">
@@ -188,8 +183,6 @@
     <button id="share-btn">Share Results</button>
     <button id="watch-trailer-btn">Watch Trailer</button>
   </div>
-
-  <div id="trailer-area"></div>
 </div>
 
 <script>
@@ -199,7 +192,6 @@ const form = document.getElementById('guess-form');
 const guessGrid = document.getElementById('guess-grid');
 const posterImg = document.getElementById('poster-img');
 const messageDiv = document.getElementById('message');
-const trailerArea = document.getElementById('trailer-area');
 const resultsOverlay = document.getElementById('results-overlay');
 const emojiGridEl = document.getElementById('emoji-grid');
 const shareBtn = document.getElementById('share-btn');
@@ -212,7 +204,6 @@ let lastQuery = "";
 // Store client-side blur tracking
 const MAX_GUESSES = {{ max_guesses }};
 let currentGuessCount = {{ guesses|length }};
-let baseBlur = 25; // starting blur strength
 
 // render guesses
 function renderGuesses(guesses) {
@@ -250,19 +241,10 @@ function buildEmojiGrid(guesses) {
 }
 
 // show overlay
-function showResultsOverlay(guesses, trailer, likes = 0, dislikes = 0) {
+function showResultsOverlay(guesses, trailer, likes=75, dislikes=25) {
   emojiGridEl.textContent = buildEmojiGrid(guesses);
+  likeDislikeDiv.innerHTML = `👍 ${likes}% &nbsp; 👎 ${dislikes}%`;
   resultsOverlay.style.display = 'flex';
-
-  // Show likes/dislikes
-  const totalVotes = likes + dislikes;
-  if (totalVotes > 0) {
-    const likePct = Math.round((likes / totalVotes) * 100);
-    const dislikePct = 100 - likePct;
-    likeDislikeDiv.innerHTML = `👍 ${likePct}% | 👎 ${dislikePct}%`;
-  } else {
-    likeDislikeDiv.innerHTML = '';
-  }
 
   shareBtn.onclick = () => {
     const text = buildEmojiGrid(guesses) + "\nPlay here: https://showtime-production-4f0b.up.railway.app/";
@@ -272,9 +254,22 @@ function showResultsOverlay(guesses, trailer, likes = 0, dislikes = 0) {
 
   watchTrailerBtn.onclick = () => {
     if(trailer) {
-      resultsOverlay.style.display = 'none';
-      trailerArea.innerHTML = `<iframe src="${trailer}" frameborder="0" allowfullscreen style="width:100%; height:300px; border-radius:8px;"></iframe>`;
-      window.scrollTo({ top: trailerArea.offsetTop - 20, behavior: 'smooth' });
+      let existingIframe = document.getElementById('trailer-iframe');
+      if(!existingIframe){
+        const iframe = document.createElement('iframe');
+        iframe.id = 'trailer-iframe';
+        iframe.src = trailer;
+        iframe.frameBorder = "0";
+        iframe.allowFullscreen = true;
+        iframe.style.width = "100%";
+        iframe.style.height = "300px";
+        iframe.style.borderRadius = "8px";
+        iframe.style.zIndex = "20";
+        iframe.style.position = "relative";
+        iframe.style.marginTop = "10px";
+        resultsOverlay.appendChild(iframe);
+      }
+      document.getElementById('trailer-iframe').scrollIntoView({behavior: "smooth"});
     }
   };
 }
@@ -330,12 +325,9 @@ form.addEventListener('submit', async (e) => {
     renderGuesses(data.guesses || []);
     currentGuessCount++;
     let remaining = Math.max(0, MAX_GUESSES - currentGuessCount);
-    // slower blur fade
-    let blur = Math.ceil((35 * Math.pow(remaining, 3)) / Math.pow(MAX_GUESSES, 3));
+    let blur = Math.ceil((40 * Math.pow(remaining, 2.5)) / Math.pow(MAX_GUESSES, 2.5));
     posterImg.style.filter = `blur(${blur}px)`;
-    if (data.game_over && data.target) {
-      showResultsOverlay(data.guesses, data.target.trailer, data.target.likes, data.target.dislikes);
-    }
+    if (data.game_over && data.target) showResultsOverlay(data.guesses, data.target.trailer, data.target.like_percent, data.target.dislike_percent);
     messageDiv.textContent = data.winner ? "🎉 You guessed it!" : "";
     guessInput.value = "";
     autocompleteResults.innerHTML = "";
@@ -347,7 +339,7 @@ form.addEventListener('submit', async (e) => {
 });
 
 {% if game_over %}
-showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}", {{ target.likes }}, {{ target.dislikes }});
+showResultsOverlay({{ guesses|tojson }}, "{{ target.trailer }}", {{ target.like_percent }}, {{ target.dislike_percent }});
 {% endif %}
 </script>
 
